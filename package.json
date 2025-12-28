@@ -1,0 +1,28 @@
+{
+  "name": "chat-platform",
+  "version": "1.0.0",
+  "description": "Scalable Real-Time Messaging System",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend/services/*"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:frontend && npm run install:backend",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm run install:all",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:gateway": "cd backend/api-gateway && npm run dev",
+    "dev:chat": "cd backend/services/chat-service && npm run dev",
+    "dev:media": "cd backend/services/media-service && npm run dev",
+    "dev:story": "cd backend/services/story-service && npm run dev",
+    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:chat\" \"npm run dev:media\" \"npm run dev:story\""
+  },
+  "devDependencies": {
+    "body-parser": "~1.20.3",
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7"
+  }
+}

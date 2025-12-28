@@ -1,0 +1,8 @@
+{
+  "name": "chat-backend",
+  "version": "1.0.0",
+  "scripts": {
+    "install:all": "npm install && cd api-gateway && npm install && cd ../services/chat-service && npm install && cd ../media-service && npm install && cd ../story-service && npm install"
+  }
+}
+

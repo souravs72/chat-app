@@ -1,0 +1,210 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: chat-postgres
+    environment:
+      POSTGRES_DB: chatdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: chat-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: chat-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - USER_SERVICE_URL=http://user-service:8082
+      - CHAT_SERVICE_URL=http://chat-service:3001
+      - MEDIA_SERVICE_URL=http://media-service:3002
+      - STORY_SERVICE_URL=http://story-service:3003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8083
+    depends_on:
+      - auth-service
+      - user-service
+      - chat-service
+      - media-service
+      - story-service
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./backend/services/auth-service
+      dockerfile: Dockerfile
+    container_name: chat-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=chatdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./backend/services/user-service
+      dockerfile: Dockerfile
+    container_name: chat-user-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=chatdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  chat-service:
+    build:
+      context: ./backend/services/chat-service
+      dockerfile: Dockerfile
+    container_name: chat-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=chatdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  media-service:
+    build:
+      context: ./backend/services/media-service
+      dockerfile: Dockerfile
+    container_name: chat-media-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - S3_BUCKET=${S3_BUCKET:-chat-media}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-false}
+      - MEDIA_BASE_URL=${MEDIA_BASE_URL:-https://s3.amazonaws.com}
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  story-service:
+    build:
+      context: ./backend/services/story-service
+      dockerfile: Dockerfile
+    container_name: chat-story-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=chatdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./backend/services/notification-service
+      dockerfile: Dockerfile
+    container_name: chat-notification-service
+    ports:
+      - "8083:8083"
+    environment:
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: chat-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_WS_URL=ws://localhost:3001/ws
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      - api-gateway
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
