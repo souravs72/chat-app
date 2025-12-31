@@ -35,8 +35,8 @@ class ApiClient {
   }
 
   // Auth endpoints
-  async signup(name: string, phone: string, password: string): Promise<AuthResponse> {
-    const response = await this.client.post('/auth/signup', { name, phone, password })
+  async signup(name: string, phone: string, password: string, email?: string): Promise<AuthResponse> {
+    const response = await this.client.post('/auth/signup', { name, phone, password, email })
     return response.data
   }
 
@@ -58,6 +58,11 @@ class ApiClient {
 
   async updateStatus(status: 'online' | 'offline'): Promise<void> {
     await this.client.patch('/users/me/status', { status })
+  }
+
+  async searchUsers(query: string): Promise<User[]> {
+    const response = await this.client.get('/users/search', { params: { q: query } })
+    return response.data
   }
 
   // Chat endpoints
@@ -94,6 +99,28 @@ class ApiClient {
       content,
       mediaUrl,
     })
+    return response.data
+  }
+
+  async sendMessageToUser(userId: string, type: string, content: string, mediaUrl?: string): Promise<Message> {
+    const response = await this.client.post(`/users/${userId}/messages`, {
+      type,
+      content,
+      mediaUrl,
+    })
+    return response.data
+  }
+
+  async blockUser(chatId: string): Promise<void> {
+    await this.client.post(`/chats/${chatId}/block`)
+  }
+
+  async unblockUser(chatId: string): Promise<void> {
+    await this.client.post(`/chats/${chatId}/unblock`)
+  }
+
+  async updateProfile(name?: string, email?: string): Promise<User> {
+    const response = await this.client.patch('/users/me', { name, email })
     return response.data
   }
 

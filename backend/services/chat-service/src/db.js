@@ -30,9 +30,16 @@ export async function initSchema() {
         chat_id VARCHAR(255) NOT NULL,
         user_id VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'member',
+        blocked BOOLEAN DEFAULT FALSE,
         PRIMARY KEY (chat_id, user_id),
         FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
       )
+    `)
+
+    // Add blocked column if it doesn't exist (for existing databases)
+    await client.query(`
+      ALTER TABLE chat_members 
+      ADD COLUMN IF NOT EXISTS blocked BOOLEAN DEFAULT FALSE
     `)
 
     await client.query(`

@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document provides a detailed overview of the chat platform architecture, following the design principles outlined in the README.
+This document provides a detailed overview of the chat platform architecture, design decisions, and service interactions.
 
 ## Transport-Agnostic Design
 

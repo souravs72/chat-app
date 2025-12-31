@@ -2,6 +2,7 @@ package com.chatplatform.auth.controller;
 
 import com.chatplatform.auth.dto.AuthRequest;
 import com.chatplatform.auth.dto.AuthResponse;
+import com.chatplatform.auth.dto.LoginRequest;
 import com.chatplatform.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,12 +19,12 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<AuthResponse> signup(@Valid @RequestBody AuthRequest request) {
-        AuthResponse response = authService.signup(request.getName(), request.getPhone(), request.getPassword());
+        AuthResponse response = authService.signup(request.getName(), request.getPhone(), request.getPassword(), request.getEmail());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request.getPhone(), request.getPassword());
         return ResponseEntity.ok(response);
     }

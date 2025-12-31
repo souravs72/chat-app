@@ -1,329 +1,213 @@
-# Chat Platform – Scalable Real‑Time Messaging System
+# Chat Platform
 
-## 1. Overview
+A modern, scalable real-time messaging platform built for millions of users. Web-first architecture with seamless mobile transition path.
 
-This project is a **modern, scalable chat application** designed to support **millions of users** with real‑time messaging, media sharing, stories, and group communication. The platform is **web‑first**, with a clean path to mobile (React Native / Flutter) without architectural rewrites.
+## 🚀 Quick Start
 
-The system prioritizes:
+```bash
+# Start all services with Docker Compose
+docker compose up -d
 
-- Horizontal scalability
-- Event‑driven design
-- Transport‑agnostic real‑time communication
-- Clean separation of concerns
-- Long‑term maintainability
-
-The frontend is built with **React**, while the backend uses a **hybrid Node.js + Spring Boot architecture**, leveraging each stack where it performs best.
-
----
-
-## 2. Key Features
-
-### User Management
-
-- Secure signup & login
-- JWT‑based authentication
-- Online / offline presence
-- Last seen timestamps
-- Multi‑device login support
-
-### Messaging
-
-- One‑to‑one personal chats
-- Channel / group chats
-- Role‑based access for channels (admin, member)
-- Message types:
-
-  - Text
-  - Images
-  - Videos
-  - Audio recordings
-  - Documents
-  - Location (live & static)
-
-### User Experience
-
-- Pin chats
-- Typing indicators
-- Read receipts
-- Message delivery status
-- Stories (24‑hour expiry, WhatsApp‑style)
-
-### Non‑Functional
-
-- Millions of concurrent users
-- Fault tolerance
-- Horizontal scalability
-- Smooth web → mobile transition
-
----
-
-## 3. Design Principles
-
-1. **Stateless Services** – Enables easy horizontal scaling
-2. **Event‑Driven Architecture** – Decouples producers and consumers
-3. **Transport Independence** – WebSocket is replaceable
-4. **Single Source of Truth** – Backend owns all business rules
-5. **Media Offloading** – Files never pass through core services
-
----
-
-## 4. High‑Level Architecture
-
-### Logical Components
-
-- API Gateway
-- Authentication Service
-- User Service
-- Chat Service
-- Media Service
-- Story Service
-- Notification Service
-- Message Broker
-
-Each service is independently deployable and horizontally scalable.
-
----
-
-## 5. Frontend Architecture (React)
-
-### Goals
-
-- Web‑first implementation
-- Mobile‑ready design
-- Minimal coupling with transport layer
-
-### Structure
-
-```
-src/
- ├── app/                # App shell & routing
- ├── auth/               # Login & signup
- ├── chat/               # Chat UI components
- ├── channels/           # Group chats
- ├── stories/            # Stories UI
- ├── realtime/           # Real‑time abstraction layer
- ├── api/                # REST API clients
- ├── store/              # Global state
- └── types/              # Shared contracts
+# Access the application
+Frontend: http://localhost:3000
+API Gateway: http://localhost:8080
+RabbitMQ Management: http://localhost:15672 (admin/admin)
 ```
 
-### Real‑Time Abstraction
+See [INSTALLATION.md](./INSTALLATION.md) for detailed setup instructions.
 
-The UI never directly uses WebSockets. All real‑time communication flows through a `RealtimeClient` layer.
+## ✨ Features
 
-This allows future replacement with:
+### Core Functionality
+- **Real-time messaging** - One-to-one and group chats
+- **User management** - Signup, login, presence, last seen
+- **Media sharing** - Images, videos, audio, documents
+- **Stories** - 24-hour expiring content
+- **Typing indicators** - Real-time typing status
+- **Read receipts** - Message delivery and read status
 
-- Server‑Sent Events
-- WebTransport
-- gRPC‑Web
-- Mobile push + sync
+### Advanced Features
+- **Messages from non-contacts** - Receive messages from any user with block option
+- **Profile management** - Update name and email
+- **Online/offline presence** - Real-time status updates
+- **Multi-device support** - Login from multiple devices
 
----
+## 🏗️ Architecture
 
-## 6. Backend Architecture
+### High-Level Overview
 
-### Technology Choice
+```
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │
+┌──────▼──────────┐
+│  API Gateway   │
+└──────┬──────────┘
+       │
+   ┌───┴───┬──────────┬──────────┬──────────┐
+   │       │          │          │          │
+┌──▼──┐ ┌─▼──┐  ┌────▼───┐  ┌───▼──┐  ┌───▼──┐
+│Auth │ │User│  │  Chat  │  │Media │  │Story │
+└─────┘ └────┘  └────────┘  └──────┘  └──────┘
+```
 
-| Responsibility | Technology  | Reason                |
-| -------------- | ----------- | --------------------- |
-| Auth & Users   | Spring Boot | Security, consistency |
-| Messaging      | Node.js     | Async, high fan‑out   |
-| Media          | Node.js     | Streaming uploads     |
-| Notifications  | Spring Boot | Reliability & retries |
+### Technology Stack
+
+- **Frontend**: React + TypeScript + Zustand
+- **Backend**: Node.js + Spring Boot (hybrid)
+- **Database**: PostgreSQL
+- **Message Broker**: RabbitMQ
+- **Real-time**: WebSocket (transport-agnostic)
 
 ### Services
 
-```
-api-gateway
-├── auth-service
-├── user-service
-├── chat-service
-├── media-service
-├── story-service
-└── notification-service
-```
+| Service | Technology | Port | Purpose |
+|---------|-----------|------|---------|
+| API Gateway | Node.js | 8080 | Request routing |
+| Auth Service | Spring Boot | 8081 | Authentication |
+| User Service | Spring Boot | 8082 | User management |
+| Chat Service | Node.js | 3001 | Messaging |
+| Media Service | Node.js | 3002 | Media handling |
+| Story Service | Node.js | 3003 | Stories |
+| Notification Service | Spring Boot | 8083 | Push notifications |
 
----
-
-## 7. Real‑Time Messaging Model
-
-### Core Idea
-
-WebSocket is treated as **just a transport**, not as business logic.
-
-### Message Flow
-
-1. Client sends message
-2. Gateway validates JWT
-3. Event published to message broker
-4. Message processor persists message
-5. Fan‑out event to recipients
-6. Online users receive real‑time push
-7. Offline users receive notification
-
-This ensures:
-
-- No sticky sessions
-- No socket‑bound state
-- Easy scaling
-
----
-
-## 8. Event‑Driven Design
-
-### Example Events
-
-- USER_CONNECTED
-- USER_DISCONNECTED
-- MESSAGE_SENT
-- MESSAGE_DELIVERED
-- MESSAGE_READ
-- STORY_CREATED
-- STORY_EXPIRED
-
-All services communicate **via events**, not direct calls, wherever possible.
-
----
-
-## 9. Database Design (Logical)
-
-### Users
+## 📁 Project Structure
 
 ```
-User(id, name, phone, status, last_seen)
+chat/
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── app/          # Routing
+│   │   ├── auth/         # Login/signup
+│   │   ├── chat/         # Chat UI
+│   │   ├── realtime/     # Real-time layer
+│   │   └── store/        # State management
+│   └── package.json
+│
+├── backend/
+│   ├── api-gateway/      # API Gateway
+│   └── services/         # Microservices
+│       ├── auth-service/
+│       ├── user-service/
+│       ├── chat-service/
+│       ├── media-service/
+│       ├── story-service/
+│       └── notification-service/
+│
+└── docker-compose.yml    # Service orchestration
 ```
 
-### Chats
+## 🛠️ Development
 
-```
-Chat(id, type, created_at)
-```
+### Prerequisites
+- Node.js 18+
+- Java 17+
+- Docker & Docker Compose
+- PostgreSQL (or use Docker)
 
-### Chat Members
+### Running Locally
 
-```
-ChatMember(chat_id, user_id, role)
-```
+```bash
+# Start infrastructure (PostgreSQL, RabbitMQ)
+docker compose up -d postgres rabbitmq
 
-### Messages
-
-```
-Message(
-  id,
-  chat_id,
-  sender_id,
-  type,
-  content,
-  media_url,
-  created_at
-)
+# Start services individually (see INSTALLATION.md)
+# Or use Docker Compose for all services
+docker compose up -d
 ```
 
-### Stories
+### Database Migrations
 
-```
-Story(id, user_id, media_url, expires_at)
-```
+- **Spring Boot services**: Flyway migrations in `src/main/resources/db/migration/`
+- **Node.js services**: Custom migration system in `migrations/` directory
 
----
+Migrations run automatically on service startup.
 
-## 10. Media Handling
+## 🔄 CI/CD
 
-### Upload Flow
+This project includes comprehensive CI/CD pipelines using GitHub Actions.
 
-1. Client requests upload permission
-2. Media Service generates pre‑signed URL
-3. Client uploads directly to object storage
-4. Message stores metadata only
+### Continuous Integration
 
-### Benefits
+The CI pipeline runs on every push and pull request:
 
-- No large payloads in core services
-- Better performance
-- Reduced infrastructure cost
+- **Frontend**: Linting, type checking, and building React/TypeScript application
+- **Node.js Services**: Dependency installation and syntax validation for all Node.js services
+- **Java Services**: Maven tests and JAR building for Spring Boot services
+- **Docker Builds**: Validates all Docker images build successfully
+- **Integration Tests**: Full docker-compose validation on main/develop branches
 
----
+**Features:**
+- ✅ Parallel execution for faster builds
+- ✅ Smart dependency caching (npm, Maven)
+- ✅ Docker layer caching
+- ✅ Matrix strategy for efficient testing
+- ✅ Test result and build artifacts
 
-## 11. Security Model
+### Code Quality
 
-- JWT for all APIs and real‑time connections
-- Role‑based channel authorization
-- Rate limiting per user
-- Short‑lived media URLs
-- Audit logs for sensitive actions
+Additional checks run automatically:
+- Secret scanning
+- Large file detection
+- YAML validation
+- Dockerfile verification
 
----
+### Continuous Deployment
 
-## 12. Scaling Strategy
+Deployment workflow is available for:
+- Version tag releases (`v*.*.*`)
+- Manual deployment to staging/production
 
-### Horizontal Scaling
+See [`.github/workflows/CD.md`](.github/workflows/CD.md) for detailed documentation.
 
-- Stateless services
-- Auto‑scaling enabled
+## 📚 Documentation
 
-### Partitioning
+- [INSTALLATION.md](./INSTALLATION.md) - Detailed installation and setup
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Architecture overview
+- [TECHNICAL.md](./TECHNICAL.md) - Technical deep-dive
+- [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) - Production readiness
 
-- Messages by chat_id
-- Users by user_id
+## 🎯 Design Principles
 
-### Resilience
+1. **Stateless Services** - Horizontal scaling ready
+2. **Event-Driven** - Decoupled service communication
+3. **Transport-Agnostic** - WebSocket is replaceable
+4. **Single Source of Truth** - Backend owns business logic
+5. **Media Offloading** - Direct client-to-storage uploads
 
-- Broker absorbs spikes
-- Retry queues for failures
-- Graceful degradation
+## 🔒 Security
 
----
+- JWT-based authentication
+- Role-based access control
+- Password hashing (BCrypt)
+- Input validation
+- SQL injection prevention
 
-## 13. Web → Mobile Transition
+## 📈 Scaling
 
-### What Stays the Same
+- **Horizontal scaling** - All services are stateless
+- **Database partitioning** - By chat_id and user_id
+- **Message broker** - Absorbs traffic spikes
+- **Read replicas** - For read-heavy operations
 
-- APIs
-- Events
-- Authentication
-- Data contracts
-
-### What Changes
-
-- UI layer only
-
-This ensures minimal rewrite when launching mobile apps.
-
----
-
-## 14. Future Enhancements
+## 🚧 Roadmap
 
 - Message reactions
-- Threads
-- Mentions
-- Full‑text search
-- End‑to‑end encryption
-- AI‑powered summaries
+- Threads/replies
+- Mentions (@user)
+- Full-text search
+- End-to-end encryption
+- AI-powered features
+
+## 📝 License
+
+[Add your license here]
+
+## 🤝 Contributing
+
+[Add contribution guidelines here]
 
 ---
 
-## 15. Why This Architecture Works
-
-- WebSocket is replaceable
-- Event‑driven scalability
-- Clean service boundaries
-- Production‑grade reliability
-- Long‑term maintainability
-
----
-
-## 16. Target Audience
-
-- Engineers building scalable chat platforms
-- Teams planning web‑first, mobile‑later apps
-- Systems requiring high throughput messaging
-
----
-
-## 17. Status
-
-This README serves as **verbal system documentation** and a **single source of architectural truth** for implementing the platform.
-
----
-
-End of document.
+For detailed technical information, see [TECHNICAL.md](./TECHNICAL.md) and [ARCHITECTURE.md](./ARCHITECTURE.md).

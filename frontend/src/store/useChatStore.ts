@@ -7,12 +7,15 @@ interface ChatState {
   activeChat: Chat | null
   messages: Record<string, Message[]>
   typingUsers: Record<string, Set<string>>
+  lastMessages: Record<string, Message>
   loadChats: () => Promise<void>
   selectChat: (chatId: string) => Promise<void>
   loadMessages: (chatId: string) => Promise<void>
   addMessage: (message: Message) => void
   setTyping: (chatId: string, userId: string, isTyping: boolean) => void
   markAsRead: (chatId: string, messageId: string) => Promise<void>
+  createPersonalChat: (userId: string) => Promise<Chat>
+  createChannel: (name: string) => Promise<Chat>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -20,10 +23,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeChat: null,
   messages: {},
   typingUsers: {},
+  lastMessages: {},
 
   loadChats: async () => {
     const chats = await apiClient.getChats()
-    set({ chats })
+    // Load last message for each chat
+    const lastMessages: Record<string, Message> = {}
+    for (const chat of chats) {
+      try {
+        const messages = await apiClient.getMessages(chat.id, 1)
+        if (messages.length > 0) {
+          lastMessages[chat.id] = messages[0]
+        }
+      } catch (error) {
+        console.error(`Failed to load last message for chat ${chat.id}:`, error)
+      }
+    }
+    set({ chats, lastMessages })
   },
 
   selectChat: async (chatId: string) => {
@@ -45,10 +61,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message: Message) => {
     set((state) => {
       const existingMessages = state.messages[message.chatId] || []
+      
+      // Deduplicate: Check if message already exists by ID
+      const messageExists = existingMessages.some(msg => msg.id === message.id)
+      if (messageExists) {
+        // Message already exists, don't add duplicate
+        return state
+      }
+      
       return {
         messages: {
           ...state.messages,
           [message.chatId]: [...existingMessages, message],
+        },
+        lastMessages: {
+          ...state.lastMessages,
+          [message.chatId]: message,
         },
       }
     })
@@ -84,6 +112,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
       }
     })
+  },
+
+  createPersonalChat: async (userId: string) => {
+    const chat = await apiClient.createPersonalChat(userId)
+    await get().loadChats()
+    return chat
+  },
+
+  createChannel: async (name: string) => {
+    const chat = await apiClient.createChannel(name)
+    await get().loadChats()
+    return chat
   },
 }))
 

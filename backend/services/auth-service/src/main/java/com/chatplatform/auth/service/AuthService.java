@@ -22,7 +22,7 @@ public class AuthService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    public AuthResponse signup(String name, String phone, String password) {
+    public AuthResponse signup(String name, String phone, String password, String email) {
         // Check if user exists
         if (userRepository.findByPhone(phone).isPresent()) {
             throw new RuntimeException("User already exists");
@@ -32,6 +32,7 @@ public class AuthService {
         user.setId(UUID.randomUUID().toString());
         user.setName(name);
         user.setPhone(phone);
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.setStatus("offline");
 
@@ -70,6 +71,7 @@ public class AuthService {
         dto.setId(user.getId());
         dto.setName(user.getName());
         dto.setPhone(user.getPhone());
+        dto.setEmail(user.getEmail());
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
         return dto;

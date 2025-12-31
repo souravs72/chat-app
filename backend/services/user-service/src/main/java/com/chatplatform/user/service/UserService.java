@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class UserService {
@@ -22,6 +23,7 @@ public class UserService {
         dto.setId(user.getId());
         dto.setName(user.getName());
         dto.setPhone(user.getPhone());
+        dto.setEmail(user.getEmail());
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
         return dto;
@@ -36,6 +38,43 @@ public class UserService {
             user.setLastSeen(LocalDateTime.now());
         }
         userRepository.save(user);
+    }
+
+    public List<UserDto> searchUsers(String query, String excludeUserId) {
+        List<User> users = userRepository.searchUsers(query, excludeUserId);
+        return users.stream().map(user -> {
+            UserDto dto = new UserDto();
+            dto.setId(user.getId());
+            dto.setName(user.getName());
+            dto.setPhone(user.getPhone());
+            dto.setEmail(user.getEmail());
+            dto.setStatus(user.getStatus());
+            dto.setLastSeen(user.getLastSeen());
+            return dto;
+        }).toList();
+    }
+
+    public UserDto updateUser(String userId, String name, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (name != null && !name.trim().isEmpty()) {
+            user.setName(name.trim());
+        }
+        if (email != null) {
+            user.setEmail(email.trim().isEmpty() ? null : email.trim());
+        }
+
+        user = userRepository.save(user);
+
+        UserDto dto = new UserDto();
+        dto.setId(user.getId());
+        dto.setName(user.getName());
+        dto.setPhone(user.getPhone());
+        dto.setEmail(user.getEmail());
+        dto.setStatus(user.getStatus());
+        dto.setLastSeen(user.getLastSeen());
+        return dto;
     }
 }
 

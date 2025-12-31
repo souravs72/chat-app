@@ -7,7 +7,7 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   login: (phone: string, password: string) => Promise<void>
-  signup: (name: string, phone: string, password: string) => Promise<void>
+  signup: (name: string, phone: string, password: string, email?: string) => Promise<void>
   logout: () => void
   loadUser: () => Promise<void>
 }
@@ -23,8 +23,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token, user, isAuthenticated: true })
   },
 
-  signup: async (name: string, phone: string, password: string) => {
-    const { token, user } = await apiClient.signup(name, phone, password)
+  signup: async (name: string, phone: string, password: string, email?: string) => {
+    const { token, user } = await apiClient.signup(name, phone, password, email)
     localStorage.setItem('token', token)
     set({ token, user, isAuthenticated: true })
   },

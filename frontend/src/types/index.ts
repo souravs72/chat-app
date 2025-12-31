@@ -4,6 +4,7 @@ export interface User {
   id: string
   name: string
   phone: string
+  email?: string
   status: 'online' | 'offline'
   lastSeen?: string
 }
@@ -20,6 +21,7 @@ export interface ChatMember {
   chatId: string
   userId: string
   role: 'admin' | 'member'
+  blocked?: boolean
   user?: User
 }
 

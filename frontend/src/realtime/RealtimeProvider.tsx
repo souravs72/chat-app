@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { RealtimeClient, WebSocketTransport } from './RealtimeClient'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useChatStore } from '@/store/useChatStore'
@@ -20,8 +20,11 @@ interface RealtimeProviderProps {
 
 export function RealtimeProvider({ children }: RealtimeProviderProps) {
   const { token, user } = useAuthStore()
-  const { addMessage, setTyping } = useChatStore()
+  const addMessage = useChatStore((state) => state.addMessage)
+  const setTyping = useChatStore((state) => state.setTyping)
+  const loadChats = useChatStore((state) => state.loadChats)
   const [client, setClient] = useState<RealtimeClient | null>(null)
+  const unsubscribeRef = useRef<Array<() => void>>([])
 
   useEffect(() => {
     if (!token || !user) return
@@ -34,32 +37,52 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
       console.log('Realtime client connected')
       setClient(realtimeClient)
 
+      // Clear any existing subscriptions
+      unsubscribeRef.current.forEach(unsub => unsub())
+      unsubscribeRef.current = []
+
       // Subscribe to message events
-      realtimeClient.subscribe('MESSAGE_SENT', (payload: Message) => {
+      const unsubMessage = realtimeClient.subscribe('MESSAGE_SENT', async (payload: Message) => {
+        // Only add message if it's not from the current user (sender already has it from API response)
+        // Backend already filters sender, but adding extra safety check
+        if (payload.senderId !== user.id) {
         addMessage(payload)
+          // Reload chats to show new chats if message is from a new contact
+          // Use setTimeout to debounce rapid chat reloads
+          setTimeout(() => {
+            loadChats()
+          }, 100)
+        }
       })
+      unsubscribeRef.current.push(unsubMessage)
 
       // Subscribe to typing indicators
-      realtimeClient.subscribe('TYPING_INDICATOR', (payload: TypingIndicator) => {
+      const unsubTyping = realtimeClient.subscribe('TYPING_INDICATOR', (payload: TypingIndicator) => {
         setTyping(payload.chatId, payload.userId, payload.isTyping)
       })
+      unsubscribeRef.current.push(unsubTyping)
 
       // Subscribe to user presence
-      realtimeClient.subscribe('USER_CONNECTED', (payload: { userId: string }) => {
+      const unsubConnected = realtimeClient.subscribe('USER_CONNECTED', (payload: { userId: string }) => {
         console.log('User connected:', payload.userId)
       })
+      unsubscribeRef.current.push(unsubConnected)
 
-      realtimeClient.subscribe('USER_DISCONNECTED', (payload: { userId: string }) => {
+      const unsubDisconnected = realtimeClient.subscribe('USER_DISCONNECTED', (payload: { userId: string }) => {
         console.log('User disconnected:', payload.userId)
       })
+      unsubscribeRef.current.push(unsubDisconnected)
     }).catch((error) => {
       console.error('Failed to connect realtime client:', error)
     })
 
     return () => {
+      // Clean up all subscriptions
+      unsubscribeRef.current.forEach(unsub => unsub())
+      unsubscribeRef.current = []
       realtimeClient.disconnect()
     }
-  }, [token, user, addMessage, setTyping])
+  }, [token, user, addMessage, setTyping, loadChats])
 
   return (
     <RealtimeContext.Provider value={client}>

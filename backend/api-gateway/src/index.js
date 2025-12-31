@@ -51,6 +51,33 @@ app.use('/api/auth', createProxyMiddleware({
   },
 }))
 
+// Proxy user message endpoint to chat service (must be before general /api/users route)
+app.use('/api/users/:userId/messages', createProxyMiddleware({
+  target: SERVICES.chat,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/users': '/api/users', // Keep the path as is for chat service
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[CHAT] ${req.method} ${req.url} -> ${SERVICES.chat}${req.url}`)
+    if (req.body && Object.keys(req.body).length > 0) {
+      const bodyData = JSON.stringify(req.body)
+      proxyReq.setHeader('Content-Type', 'application/json')
+      proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData))
+      proxyReq.write(bodyData)
+    }
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[CHAT] ${proxyRes.statusCode} ${req.url}`)
+  },
+  onError: (err, req, res) => {
+    console.error('[CHAT] Error:', err.message)
+    if (!res.headersSent) {
+      res.status(502).json({ message: 'Service unavailable', error: err.message })
+    }
+  },
+}))
+
 // Proxy to user service
 app.use('/api/users', createProxyMiddleware({
   target: SERVICES.user,

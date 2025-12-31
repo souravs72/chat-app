@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/useAuthStore'
 export default function Signup() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +18,7 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      await signup(name, phone, password)
+      await signup(name, phone, password, email || undefined)
       navigate('/')
     } catch (err: any) {
       setError(err.response?.data?.message || 'Signup failed')
@@ -42,15 +43,22 @@ export default function Signup() {
           />
           <input
             type="tel"
-            placeholder="Phone"
+            placeholder="Phone (10-15 digits)"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
             style={styles.input}
           />
           <input
+            type="email"
+            placeholder="Email (optional)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={styles.input}
+          />
+          <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (min 6 characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

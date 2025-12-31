@@ -6,7 +6,8 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { format } from 'date-fns'
 
 export default function ChatWindow() {
-  const { activeChat, messages, addMessage, typingUsers } = useChatStore()
+  const chatStore = useChatStore()
+  const { activeChat, messages, addMessage, typingUsers } = chatStore
   const { user } = useAuthStore()
   const realtime = useRealtime()
   const [input, setInput] = useState('')
@@ -74,37 +75,152 @@ export default function ChatWindow() {
 
   const typingUserIds = activeChat ? Array.from(typingUsers[activeChat.id] || []) : []
 
+  const getChatDisplayName = () => {
+    if (!activeChat) return 'Chat'
+    if (activeChat.type === 'channel') {
+      return `# ${activeChat.name}`
+    }
+    const otherMember = activeChat.members?.find(m => m.user?.id !== user?.id)
+    return otherMember?.user?.name || 'Chat'
+  }
+
+  const getOtherUserStatus = () => {
+    if (!activeChat || activeChat.type === 'channel') return null
+    const otherMember = activeChat.members?.find(m => m.user?.id !== user?.id)
+    return otherMember?.user?.status
+  }
+
+  const isNewChat = () => {
+    if (!activeChat || activeChat.type === 'channel') return false
+    // Check if current user has sent any messages in this chat
+    const hasUserSentMessage = chatMessages.some(msg => msg.senderId === user?.id)
+    return !hasUserSentMessage && chatMessages.length > 0
+  }
+
+  const handleBlock = async () => {
+    if (!activeChat) return
+    try {
+      await apiClient.blockUser(activeChat.id)
+      // Reload chat to update blocked status
+      await chatStore.selectChat(activeChat.id)
+    } catch (error) {
+      console.error('Failed to block user:', error)
+    }
+  }
+
+  const shouldShowAvatar = (message: typeof chatMessages[0], index: number) => {
+    if (message.senderId === user?.id) return false
+    if (index === 0) return true
+    const prevMessage = chatMessages[index - 1]
+    return prevMessage.senderId !== message.senderId
+  }
+
+  const shouldShowSenderName = (message: typeof chatMessages[0], index: number) => {
+    if (message.senderId === user?.id) return false
+    if (index === 0) return true
+    const prevMessage = chatMessages[index - 1]
+    return prevMessage.senderId !== message.senderId
+  }
+
+  const getMessageTime = (createdAt: string) => {
+    try {
+      return format(new Date(createdAt), 'HH:mm')
+    } catch {
+      return ''
+    }
+  }
+
+  const showBlockOption = isNewChat()
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h3>{activeChat?.type === 'channel' ? `# ${activeChat.name}` : 'Chat'}</h3>
+        <div style={styles.headerContent}>
+          <div style={styles.headerInfo}>
+            <div style={styles.headerAvatar}>
+              {activeChat?.type === 'channel' ? '#' : getChatDisplayName().charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={styles.headerName}>{getChatDisplayName()}</div>
+              {getOtherUserStatus() === 'online' && (
+                <div style={styles.headerStatus}>Online</div>
+              )}
+            </div>
+          </div>
+          {showBlockOption && (
+            <button onClick={handleBlock} style={styles.blockButton} title="Block user">
+              Block
+            </button>
+          )}
+        </div>
       </div>
       <div style={styles.messages}>
-        {chatMessages.map((message) => (
+        {chatMessages.length === 0 && (
+          <div style={styles.emptyMessages}>
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+        )}
+        {chatMessages.map((message, index) => {
+          const isMyMessage = message.senderId === user?.id
+          const showAvatar = shouldShowAvatar(message, index)
+          const showSenderName = shouldShowSenderName(message, index)
+          
+          return (
           <div
             key={message.id}
             style={{
-              ...styles.message,
-              ...(message.senderId === user?.id ? styles.myMessage : {}),
+                ...styles.messageWrapper,
+                ...(isMyMessage ? styles.myMessageWrapper : {}),
             }}
           >
-            <div style={styles.messageHeader}>
-              <span style={styles.sender}>{message.sender?.name || 'Unknown'}</span>
-              <span style={styles.timestamp}>
-                {format(new Date(message.createdAt), 'HH:mm')}
+              {!isMyMessage && showAvatar && (
+                <div style={styles.avatar}>
+                  {message.sender?.name?.charAt(0).toUpperCase() || '?'}
+                </div>
+              )}
+              {!isMyMessage && !showAvatar && <div style={styles.avatarSpacer} />}
+              <div
+                style={{
+                  ...styles.messageBubble,
+                  ...(isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble),
+                }}
+              >
+                {showSenderName && !isMyMessage && (
+                  <div style={styles.senderName}>{message.sender?.name || 'Unknown'}</div>
+                )}
+                <div style={styles.messageContent}>
+                  {message.type === 'image' && message.mediaUrl && (
+                    <img src={message.mediaUrl} alt="Shared" style={styles.media} />
+                  )}
+                  {message.type === 'video' && message.mediaUrl && (
+                    <video src={message.mediaUrl} controls style={styles.media} />
+                  )}
+                  {message.content && (
+                    <div style={styles.messageText}>{message.content}</div>
+                  )}
+                </div>
+                <div style={styles.messageFooter}>
+                  <span style={styles.timestamp}>{getMessageTime(message.createdAt)}</span>
+                  {isMyMessage && message.delivered && (
+                    <span style={styles.status}>
+                      {message.read ? '✓✓' : '✓'}
               </span>
+                  )}
             </div>
-            <div style={styles.messageContent}>{message.content}</div>
-            {message.delivered && (
-              <div style={styles.status}>
-                {message.read ? '✓✓' : '✓'}
               </div>
-            )}
           </div>
-        ))}
+          )
+        })}
         {typingUserIds.length > 0 && (
           <div style={styles.typing}>
+            <div style={styles.typingDots}>
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+            </div>
+            <span style={styles.typingText}>
             {typingUserIds.length} user{typingUserIds.length > 1 ? 's' : ''} typing...
+            </span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -126,8 +242,15 @@ export default function ChatWindow() {
           placeholder="Type a message..."
           style={styles.input}
         />
-        <button onClick={handleSend} disabled={sending || !input.trim()} style={styles.sendButton}>
-          Send
+        <button
+          onClick={handleSend}
+          disabled={sending || !input.trim()}
+          style={{
+            ...styles.sendButton,
+            ...((sending || !input.trim()) ? styles.sendButtonDisabled : {}),
+          }}
+        >
+          {sending ? '...' : '→'}
         </button>
       </div>
     </div>
@@ -139,10 +262,60 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
+    backgroundColor: '#f0f2f5',
   },
   header: {
-    padding: '1rem',
-    borderBottom: '1px solid #ddd',
+    padding: '1rem 1.5rem',
+    borderBottom: '1px solid #e0e0e0',
+    backgroundColor: 'white',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+  },
+  headerContent: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  blockButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    fontWeight: '500',
+    transition: 'background-color 0.2s',
+  },
+  blockButtonHover: {
+    backgroundColor: '#c82333',
+  },
+  headerInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  headerAvatar: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    backgroundColor: '#007bff',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.1rem',
+    fontWeight: '600',
+  },
+  headerName: {
+    fontWeight: '600',
+    fontSize: '1.1rem',
+    color: '#333',
+  },
+  headerStatus: {
+    fontSize: '0.75rem',
+    color: '#4caf50',
+    marginTop: '0.25rem',
   },
   messages: {
     flex: 1,
@@ -150,64 +323,150 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '1rem',
     display: 'flex',
     flexDirection: 'column',
-    gap: '1rem',
+    gap: '0.5rem',
   },
-  message: {
-    maxWidth: '70%',
-    padding: '0.75rem',
-    backgroundColor: '#f0f0f0',
-    borderRadius: '8px',
+  emptyMessages: {
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    color: '#999',
   },
-  myMessage: {
-    alignSelf: 'flex-end',
+  messageWrapper: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '0.5rem',
+    marginBottom: '0.25rem',
+  },
+  myMessageWrapper: {
+    flexDirection: 'row-reverse',
+  },
+  avatar: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
     backgroundColor: '#007bff',
     color: 'white',
-  },
-  messageHeader: {
     display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '0.25rem',
+    alignItems: 'center',
+    justifyContent: 'center',
     fontSize: '0.875rem',
+    fontWeight: '600',
+    flexShrink: 0,
   },
-  sender: {
-    fontWeight: '500',
+  avatarSpacer: {
+    width: '32px',
+    flexShrink: 0,
   },
-  timestamp: {
-    opacity: 0.7,
-  },
-  messageContent: {
+  messageBubble: {
+    maxWidth: '65%',
+    padding: '0.625rem 0.875rem',
+    borderRadius: '12px',
     wordBreak: 'break-word',
   },
-  status: {
-    marginTop: '0.25rem',
+  myMessageBubble: {
+    backgroundColor: '#dcf8c6',
+    borderTopRightRadius: '4px',
+  },
+  otherMessageBubble: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: '4px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+  },
+  senderName: {
     fontSize: '0.75rem',
-    opacity: 0.7,
+    fontWeight: '600',
+    color: '#007bff',
+    marginBottom: '0.25rem',
+  },
+  messageContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  messageText: {
+    fontSize: '0.9375rem',
+    lineHeight: '1.4',
+    color: '#333',
+  },
+  media: {
+    maxWidth: '100%',
+    maxHeight: '300px',
+    borderRadius: '8px',
+    objectFit: 'contain',
+  },
+  messageFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '0.25rem',
+    marginTop: '0.25rem',
+  },
+  timestamp: {
+    fontSize: '0.6875rem',
+    color: '#999',
+    opacity: 0.8,
+  },
+  status: {
+    fontSize: '0.75rem',
+    color: '#999',
   },
   typing: {
-    padding: '0.5rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.5rem 1rem',
     fontStyle: 'italic',
     color: '#999',
   },
+  typingDots: {
+    display: 'flex',
+    gap: '0.25rem',
+    alignItems: 'center',
+  },
+  typingDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: '#999',
+  },
+  typingText: {
+    fontSize: '0.875rem',
+  },
   inputArea: {
     display: 'flex',
-    padding: '1rem',
-    borderTop: '1px solid #ddd',
-    gap: '0.5rem',
+    padding: '1rem 1.5rem',
+    borderTop: '1px solid #e0e0e0',
+    backgroundColor: 'white',
+    gap: '0.75rem',
+    alignItems: 'center',
   },
   input: {
     flex: 1,
-    padding: '0.75rem',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
+    padding: '0.75rem 1rem',
+    border: '1px solid #e0e0e0',
+    borderRadius: '24px',
     fontSize: '1rem',
+    outline: 'none',
   },
   sendButton: {
-    padding: '0.75rem 1.5rem',
+    width: '44px',
+    height: '44px',
+    borderRadius: '50%',
     backgroundColor: '#007bff',
     color: 'white',
     border: 'none',
-    borderRadius: '4px',
     cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.25rem',
+    fontWeight: '600',
+    transition: 'background-color 0.2s',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#ccc',
+    cursor: 'not-allowed',
   },
 }
 

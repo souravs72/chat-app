@@ -1,2 +1,78 @@
 /* Additional styles for chat layout */
 
+/* Typing indicator animation */
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #999;
+  display: inline-block;
+  animation: typing-dot 1.4s infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Smooth scroll behavior */
+.chat-messages {
+  scroll-behavior: smooth;
+}
+
+/* Message bubble animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-bubble {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100% !important;
+  }
+  
+  .main {
+    display: none !important;
+  }
+  
+  .main.active {
+    display: flex !important;
+  }
+}
+

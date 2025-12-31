@@ -24,12 +24,19 @@ export function setupRoutes(app) {
           WHERE cm.chat_id = $1
         `, [chat.id])
 
+        // Filter out chats where current user is the only member
+        const otherMembers = membersResult.rows.filter(row => row.user_id !== userId)
+        if (chat.type === 'personal' && otherMembers.length === 0) {
+          return null
+        }
+
         return {
           ...chat,
           members: membersResult.rows.map(row => ({
             chatId: row.chat_id,
             userId: row.user_id,
             role: row.role,
+            blocked: row.blocked || false,
             user: row.user_id ? {
               id: row.user_id,
               name: row.name,
@@ -41,7 +48,10 @@ export function setupRoutes(app) {
         }
       }))
 
-      res.json(chats)
+      // Filter out null chats (self-only chats)
+      const filteredChats = chats.filter(chat => chat !== null)
+
+      res.json(filteredChats)
     } catch (error) {
       console.error('Error fetching chats:', error)
       res.status(500).json({ message: 'Failed to fetch chats' })
@@ -83,6 +93,7 @@ export function setupRoutes(app) {
         chatId: row.chat_id,
         userId: row.user_id,
         role: row.role,
+        blocked: row.blocked || false,
         user: row.user_id ? {
           id: row.user_id,
           name: row.name,
@@ -212,6 +223,104 @@ export function setupRoutes(app) {
     }
   })
 
+  // Send message to user (auto-creates chat if needed)
+  app.post('/api/users/:userId/messages', async (req, res) => {
+    try {
+      const { userId: recipientId } = req.params
+      const { type, content, mediaUrl } = req.body
+      const senderId = req.userId
+
+      if (senderId === recipientId) {
+        return res.status(400).json({ message: 'Cannot send message to yourself' })
+      }
+
+      // Check if recipient has blocked sender
+      const blockedCheck = await pool.query(`
+        SELECT cm.blocked 
+        FROM chat_members cm
+        INNER JOIN chats c ON cm.chat_id = c.id
+        WHERE c.type = 'personal'
+        AND cm.user_id = $1
+        AND cm.chat_id IN (
+          SELECT chat_id FROM chat_members WHERE user_id = $2
+        )
+      `, [recipientId, senderId])
+
+      if (blockedCheck.rows.length > 0 && blockedCheck.rows[0].blocked) {
+        return res.status(403).json({ message: 'You have been blocked by this user' })
+      }
+
+      // Find or create personal chat
+      let chatResult = await pool.query(`
+        SELECT c.id
+        FROM chats c
+        INNER JOIN chat_members cm1 ON c.id = cm1.chat_id
+        INNER JOIN chat_members cm2 ON c.id = cm2.chat_id
+        WHERE c.type = 'personal'
+        AND cm1.user_id = $1
+        AND cm2.user_id = $2
+      `, [senderId, recipientId])
+
+      let chatId
+      if (chatResult.rows.length > 0) {
+        chatId = chatResult.rows[0].id
+      } else {
+        // Create new chat
+        chatId = uuidv4()
+        await pool.query('INSERT INTO chats (id, type) VALUES ($1, $2)', [chatId, 'personal'])
+        await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, senderId])
+        await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, recipientId])
+      }
+
+      // Unblock user if they're replying (sending a message)
+      await pool.query(
+        'UPDATE chat_members SET blocked = FALSE WHERE chat_id = $1 AND user_id = $2',
+        [chatId, senderId]
+      )
+
+      // Create message
+      const messageId = uuidv4()
+      await pool.query(
+        'INSERT INTO messages (id, chat_id, sender_id, type, content, media_url) VALUES ($1, $2, $3, $4, $5, $6)',
+        [messageId, chatId, senderId, type, content, mediaUrl]
+      )
+
+      // Get message with sender info
+      const messageResult = await pool.query(`
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        FROM messages m
+        LEFT JOIN users u ON m.sender_id = u.id
+        WHERE m.id = $1
+      `, [messageId])
+
+      const message = {
+        id: messageResult.rows[0].id,
+        chatId: messageResult.rows[0].chat_id,
+        senderId: messageResult.rows[0].sender_id,
+        type: messageResult.rows[0].type,
+        content: messageResult.rows[0].content,
+        mediaUrl: messageResult.rows[0].media_url,
+        createdAt: messageResult.rows[0].created_at,
+        sender: {
+          id: messageResult.rows[0].sender_id,
+          name: messageResult.rows[0].sender_name,
+          phone: messageResult.rows[0].sender_phone,
+        },
+      }
+
+      // Publish event to message broker
+      await publishEvent('message.sent', {
+        message,
+        chatId,
+      })
+
+      res.json(message)
+    } catch (error) {
+      console.error('Error sending message to user:', error)
+      res.status(500).json({ message: 'Failed to send message' })
+    }
+  })
+
   // Send message
   app.post('/api/chats/:chatId/messages', async (req, res) => {
     try {
@@ -228,6 +337,17 @@ export function setupRoutes(app) {
       if (memberCheck.rows.length === 0) {
         return res.status(403).json({ message: 'Not a member of this chat' })
       }
+
+      // Check if user is blocked
+      if (memberCheck.rows[0].blocked) {
+        return res.status(403).json({ message: 'You are blocked in this chat' })
+      }
+
+      // Unblock user if they're replying (sending a message)
+      await pool.query(
+        'UPDATE chat_members SET blocked = FALSE WHERE chat_id = $1 AND user_id = $2',
+        [chatId, userId]
+      )
 
       const messageId = uuidv4()
       await pool.query(
@@ -277,6 +397,9 @@ export function setupRoutes(app) {
       const { chatId, messageId } = req.params
       const userId = req.userId
 
+      // Unblock if user replies (sends a message after receiving)
+      // This is handled when user sends a message, so we just mark as read here
+
       // Publish read event
       await publishEvent('message.read', {
         chatId,
@@ -288,6 +411,74 @@ export function setupRoutes(app) {
     } catch (error) {
       console.error('Error marking message as read:', error)
       res.status(500).json({ message: 'Failed to mark message as read' })
+    }
+  })
+
+  // Block user in a chat
+  app.post('/api/chats/:chatId/block', async (req, res) => {
+    try {
+      const { chatId } = req.params
+      const userId = req.userId
+
+      // Verify user is member
+      const memberCheck = await pool.query(
+        'SELECT * FROM chat_members WHERE chat_id = $1 AND user_id = $2',
+        [chatId, userId]
+      )
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'Not a member of this chat' })
+      }
+
+      // Get the other user in personal chat
+      const otherMember = await pool.query(
+        'SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id != $2',
+        [chatId, userId]
+      )
+
+      if (otherMember.rows.length === 0) {
+        return res.status(400).json({ message: 'Cannot block in this chat' })
+      }
+
+      // Block the other user (set blocked = true for the current user's membership)
+      await pool.query(
+        'UPDATE chat_members SET blocked = TRUE WHERE chat_id = $1 AND user_id = $2',
+        [chatId, userId]
+      )
+
+      res.json({ success: true })
+    } catch (error) {
+      console.error('Error blocking user:', error)
+      res.status(500).json({ message: 'Failed to block user' })
+    }
+  })
+
+  // Unblock user in a chat (happens automatically when user replies)
+  app.post('/api/chats/:chatId/unblock', async (req, res) => {
+    try {
+      const { chatId } = req.params
+      const userId = req.userId
+
+      // Verify user is member
+      const memberCheck = await pool.query(
+        'SELECT * FROM chat_members WHERE chat_id = $1 AND user_id = $2',
+        [chatId, userId]
+      )
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'Not a member of this chat' })
+      }
+
+      // Unblock (set blocked = false)
+      await pool.query(
+        'UPDATE chat_members SET blocked = FALSE WHERE chat_id = $1 AND user_id = $2',
+        [chatId, userId]
+      )
+
+      res.json({ success: true })
+    } catch (error) {
+      console.error('Error unblocking user:', error)
+      res.status(500).json({ message: 'Failed to unblock user' })
     }
   })
 }

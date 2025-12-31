@@ -8,8 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -44,6 +43,23 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<List<UserDto>> searchUsers(
+            @RequestParam String q,
+            HttpServletRequest httpRequest) {
+        String userId = getUserIdFromRequest(httpRequest);
+        List<UserDto> users = userService.searchUsers(q, userId);
+        return ResponseEntity.ok(users);
+    }
+
+    @PatchMapping("/me")
+    public ResponseEntity<UserDto> updateProfile(
+            @RequestBody UpdateProfileRequest request,
+            HttpServletRequest httpRequest) {
+        String userId = getUserIdFromRequest(httpRequest);
+        UserDto user = userService.updateUser(userId, request.getName(), request.getEmail());
+        return ResponseEntity.ok(user);
+    }
 
     private String getUserIdFromRequest(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
@@ -58,6 +74,15 @@ public class UserController {
         private String status;
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+    }
+
+    static class UpdateProfileRequest {
+        private String name;
+        private String email;
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
     }
 }
 
