@@ -17,7 +17,7 @@
     "dev:media": "cd backend/services/media-service && npm run dev",
     "dev:story": "cd backend/services/story-service && npm run dev",
     "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:chat\" \"npm run dev:media\" \"npm run dev:story\"",
-    "prepare": "husky install",
+    "prepare": "node -e \"try { if (!process.env.CI && process.env.HUSKY !== '0' && require('fs').existsSync('node_modules/husky')) require('husky').install() } catch (e) {}\"",
     "lint:frontend": "cd frontend && npm run lint",
     "type-check:frontend": "cd frontend && tsc --noEmit"
   },
