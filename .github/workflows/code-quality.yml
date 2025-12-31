@@ -2,21 +2,21 @@ name: Code Quality
 
 on:
   push:
-    branches: [ main, develop, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main, develop, dev ]
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for better analysis
+          fetch-depth: 0 # Full history for better analysis
 
       - name: Check for large files
         run: |
@@ -58,4 +58,3 @@ jobs:
           echo "- Secret scanning: Completed" >> $GITHUB_STEP_SUMMARY
           echo "- YAML validation: Completed" >> $GITHUB_STEP_SUMMARY
           echo "- Dockerfile verification: Completed" >> $GITHUB_STEP_SUMMARY
-

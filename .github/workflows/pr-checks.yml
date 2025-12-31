@@ -2,14 +2,14 @@ name: PR Checks
 
 on:
   pull_request:
-    branches: [ main, develop, dev ]
+    branches: [main, dev]
     types: [opened, synchronize, reopened]
 
 jobs:
   pr-validation:
     name: PR Validation
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,4 +76,3 @@ jobs:
       - name: Validate commit messages
         uses: wagoid/commitlint-github-action@v5
         continue-on-error: true
-
