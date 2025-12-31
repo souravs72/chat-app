@@ -1,0 +1,79 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main, develop, dev ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR title format
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git merge-base --is-ancestor origin/${{ github.base_ref }} HEAD || {
+            echo "❌ Branch is not up to date with base branch"
+            exit 1
+          }
+
+      - name: Check file size
+        run: |
+          echo "Checking for large files..."
+          MAX_SIZE=10485760 # 10MB
+          LARGE_FILES=$(find . -type f -size +${MAX_SIZE} ! -path "./.git/*" ! -path "./node_modules/*" ! -path "./target/*" ! -path "./dist/*" -exec ls -lh {} \; | awk '{print $5 " " $9}')
+          if [ -n "$LARGE_FILES" ]; then
+            echo "⚠️ Large files detected:"
+            echo "$LARGE_FILES"
+            echo "Consider using Git LFS for large files"
+          else
+            echo "✅ No large files detected"
+          fi
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for TODO/FIXME comments..."
+          TODO_COUNT=$(grep -r "TODO\|FIXME" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.java" frontend/src backend/src 2>/dev/null | wc -l || echo "0")
+          if [ "$TODO_COUNT" -gt 0 ]; then
+            echo "⚠️ Found $TODO_COUNT TODO/FIXME comments"
+            grep -r "TODO\|FIXME" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.java" frontend/src backend/src 2>/dev/null || true
+          else
+            echo "✅ No TODO/FIXME comments found"
+          fi
+        continue-on-error: true
+
+      - name: Validate commit messages
+        uses: wagoid/commitlint-github-action@v5
+        continue-on-error: true
+
