@@ -23,15 +23,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Check for package-lock.json
+        id: check_lockfile
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js (with cache)
+        if: steps.check_lockfile.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Setup Node.js (without cache)
+        if: steps.check_lockfile.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+            echo "⚠️ package-lock.json not found, dependencies installed without lock file"
+          fi
 
       - name: Lint
         run: npm run lint
@@ -60,16 +82,17 @@ jobs:
         include:
           - service: api-gateway
             path: backend/api-gateway
+            has_lockfile: true
             lockfile: backend/api-gateway/package-lock.json
           - service: chat-service
             path: backend/services/chat-service
-            lockfile: backend/services/chat-service/package-lock.json
+            has_lockfile: false
           - service: media-service
             path: backend/services/media-service
-            lockfile: backend/services/media-service/package-lock.json
+            has_lockfile: false
           - service: story-service
             path: backend/services/story-service
-            lockfile: backend/services/story-service/package-lock.json
+            has_lockfile: false
     defaults:
       run:
         working-directory: ./${{ matrix.path }}
@@ -78,15 +101,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js (with cache)
+        if: matrix.has_lockfile == true
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ matrix.lockfile }}
 
+      - name: Setup Node.js (without cache)
+        if: matrix.has_lockfile == false
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+            echo "⚠️ package-lock.json not found for ${{ matrix.service }}, dependencies installed without lock file"
+          fi
 
       - name: Syntax check
         run: |
