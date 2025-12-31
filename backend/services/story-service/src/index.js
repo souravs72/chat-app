@@ -4,8 +4,14 @@ import express from 'express'
 import cors from 'cors'
 import jwt from 'jsonwebtoken'
 import cron from 'node-cron'
-import { pool } from './db.js'
+import { pool, runMigrations } from './db.js'
 import { randomUUID as uuidv4 } from 'crypto'
+
+// Run migrations before starting server (non-blocking)
+runMigrations().catch((error) => {
+  console.error('Migration error on startup:', error.message)
+  console.log('Service will continue, but database may not be properly initialized')
+})
 
 const app = express()
 

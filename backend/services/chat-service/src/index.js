@@ -5,10 +5,16 @@ import cors from 'cors'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import jwt from 'jsonwebtoken'
-import { pool } from './db.js'
+import { pool, runMigrations } from './db.js'
 import { setupRoutes } from './routes.js'
 import { setupWebSocket } from './websocket.js'
 import { setupEventHandlers, connectToBroker } from './events.js'
+
+// Run migrations before starting server (non-blocking)
+runMigrations().catch((error) => {
+  console.error('Migration error on startup:', error.message)
+  console.log('Service will continue, but database may not be properly initialized')
+})
 
 const app = express()
 const server = createServer(app)
