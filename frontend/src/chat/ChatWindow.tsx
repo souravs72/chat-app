@@ -1,25 +1,35 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChatStore } from '@/store/useChatStore'
-import { useRealtime } from '@/realtime/RealtimeProvider'
 import { apiClient } from '@/api/client'
 import { useAuthStore } from '@/store/useAuthStore'
 import { format } from 'date-fns'
+import TypingIndicator from './TypingIndicator'
+import { useTypingIndicator } from './useTypingIndicator'
+import Avatar from '@/components/Avatar'
 
 export default function ChatWindow() {
   const chatStore = useChatStore()
-  const { activeChat, messages, addMessage, typingUsers } = chatStore
+  const { activeChat, messages, addMessage } = chatStore
   const { user } = useAuthStore()
-  const realtime = useRealtime()
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  
+  // Use custom typing indicator hook
+  const { handleTyping, stopTyping, cleanup } = useTypingIndicator(activeChat?.id || null)
 
   const chatMessages = activeChat ? messages[activeChat.id] || [] : []
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // Cleanup typing indicator when chat changes or component unmounts
+  useEffect(() => {
+    return () => {
+      cleanup()
+    }
+  }, [activeChat?.id, cleanup])
 
   const handleSend = async () => {
     if (!activeChat || !input.trim() || sending) return
@@ -29,14 +39,8 @@ export default function ChatWindow() {
       const message = await apiClient.sendMessage(activeChat.id, 'text', input.trim())
       addMessage(message)
       
-      // Publish typing stop
-      if (realtime) {
-        realtime.publish('TYPING_INDICATOR', {
-          chatId: activeChat.id,
-          userId: user?.id,
-          isTyping: false,
-        })
-      }
+      // Stop typing indicator when message is sent
+      stopTyping()
       
       setInput('')
     } catch (error) {
@@ -46,34 +50,18 @@ export default function ChatWindow() {
     }
   }
 
-  const handleTyping = () => {
-    if (!activeChat || !realtime || !user) return
-
-    // Publish typing indicator
-    realtime.publish('TYPING_INDICATOR', {
-      chatId: activeChat.id,
-      userId: user.id,
-      isTyping: true,
-    })
-
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-
-    // Stop typing after 3 seconds of inactivity
-    typingTimeoutRef.current = setTimeout(() => {
-      if (realtime) {
-        realtime.publish('TYPING_INDICATOR', {
-          chatId: activeChat.id,
-          userId: user.id,
-          isTyping: false,
-        })
-      }
-    }, 3000)
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value)
+    // Trigger typing indicator
+    handleTyping()
   }
 
-  const typingUserIds = activeChat ? Array.from(typingUsers[activeChat.id] || []) : []
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
 
   const getChatDisplayName = () => {
     if (!activeChat) return 'Chat'
@@ -84,11 +72,9 @@ export default function ChatWindow() {
     return otherMember?.user?.name || 'Chat'
   }
 
-  const getOtherUserStatus = () => {
-    if (!activeChat || activeChat.type === 'channel') return null
-    const otherMember = activeChat.members?.find(m => m.user?.id !== user?.id)
-    return otherMember?.user?.status
-  }
+  const otherUser = activeChat?.type === 'channel' || !activeChat
+    ? null
+    : activeChat.members?.find(m => m.user?.id !== user?.id)?.user
 
   const isNewChat = () => {
     if (!activeChat || activeChat.type === 'channel') return false
@@ -137,12 +123,18 @@ export default function ChatWindow() {
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <div style={styles.headerInfo}>
-            <div style={styles.headerAvatar}>
-              {activeChat?.type === 'channel' ? '#' : getChatDisplayName().charAt(0).toUpperCase()}
-            </div>
+            {activeChat?.type === 'channel' ? (
+              <Avatar name={activeChat.name || '#'} size={40} />
+            ) : (
+              <Avatar
+                src={otherUser?.profilePicture}
+                name={otherUser?.name}
+                size={40}
+              />
+            )}
             <div>
               <div style={styles.headerName}>{getChatDisplayName()}</div>
-              {getOtherUserStatus() === 'online' && (
+              {otherUser?.status === 'online' && (
                 <div style={styles.headerStatus}>Online</div>
               )}
             </div>
@@ -174,9 +166,11 @@ export default function ChatWindow() {
             }}
           >
               {!isMyMessage && showAvatar && (
-                <div style={styles.avatar}>
-                  {message.sender?.name?.charAt(0).toUpperCase() || '?'}
-                </div>
+                <Avatar
+                  src={message.sender?.profilePicture}
+                  name={message.sender?.name}
+                  size={32}
+                />
               )}
               {!isMyMessage && !showAvatar && <div style={styles.avatarSpacer} />}
               <div
@@ -211,34 +205,19 @@ export default function ChatWindow() {
           </div>
           )
         })}
-        {typingUserIds.length > 0 && (
-          <div style={styles.typing}>
-            <div style={styles.typingDots}>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-            </div>
-            <span style={styles.typingText}>
-            {typingUserIds.length} user{typingUserIds.length > 1 ? 's' : ''} typing...
-            </span>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
+      {activeChat && (
+        <div style={styles.typingIndicatorContainer}>
+          <TypingIndicator chatId={activeChat.id} />
+        </div>
+      )}
       <div style={styles.inputArea}>
         <input
           type="text"
           value={input}
-          onChange={(e) => {
-            setInput(e.target.value)
-            handleTyping()
-          }}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSend()
-            }
-          }}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
           placeholder="Type a message..."
           style={styles.input}
         />
@@ -295,18 +274,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '1rem',
   },
-  headerAvatar: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: '#007bff',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '1.1rem',
-    fontWeight: '600',
-  },
   headerName: {
     fontWeight: '600',
     fontSize: '1.1rem',
@@ -324,6 +291,18 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
+    minHeight: 0, // Important for flex scrolling
+  },
+  typingIndicatorContainer: {
+    flexShrink: 0,
+    padding: '0.5rem 1.5rem',
+    backgroundColor: '#f0f2f5',
+    borderTop: '1px solid #e0e0e0',
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: '48px',
+    maxHeight: '48px',
+    overflow: 'hidden',
   },
   emptyMessages: {
     flex: 1,
@@ -340,19 +319,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   myMessageWrapper: {
     flexDirection: 'row-reverse',
-  },
-  avatar: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '50%',
-    backgroundColor: '#007bff',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    flexShrink: 0,
   },
   avatarSpacer: {
     width: '32px',
@@ -410,28 +376,6 @@ const styles: Record<string, React.CSSProperties> = {
   status: {
     fontSize: '0.75rem',
     color: '#999',
-  },
-  typing: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 1rem',
-    fontStyle: 'italic',
-    color: '#999',
-  },
-  typingDots: {
-    display: 'flex',
-    gap: '0.25rem',
-    alignItems: 'center',
-  },
-  typingDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    backgroundColor: '#999',
-  },
-  typingText: {
-    fontSize: '0.875rem',
   },
   inputArea: {
     display: 'flex',

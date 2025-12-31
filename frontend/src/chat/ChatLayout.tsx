@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/store/useChatStore'
-import { useAuthStore } from '@/store/useAuthStore'
 import { apiClient } from '@/api/client'
 import ChatList from './ChatList'
 import ChatWindow from './ChatWindow'
 import NewChatModal from './NewChatModal'
 import SettingsModal from './SettingsModal'
+import UserProfile from '@/components/UserProfile'
 import './ChatLayout.css'
 
 export default function ChatLayout() {
-  const { user } = useAuthStore()
   const { loadChats, activeChat } = useChatStore()
   const [isNewChatOpen, setIsNewChatOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -25,37 +24,36 @@ export default function ChatLayout() {
 
   return (
     <div style={styles.container}>
-      <div style={styles.sidebar}>
-        <div style={styles.header}>
-          <div style={styles.headerTop}>
-            <div style={styles.headerTitle}>
-              <div style={styles.logo}>💬</div>
-              <h2 style={styles.title}>Chats</h2>
-            </div>
-            <button
-              onClick={() => setIsNewChatOpen(true)}
-              style={styles.newChatBtn}
-              title="New Chat"
-            >
-              +
-            </button>
-          </div>
-          <div style={styles.userSection}>
-            <div style={styles.userAvatar}>
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-          <div style={styles.userInfo}>
-              <div style={styles.userName}>{user?.name || 'User'}</div>
-              <div style={styles.userStatus}>Online</div>
-            </div>
-            <button onClick={() => setIsSettingsOpen(true)} style={styles.settingsBtn} title="Settings">
-              ⚙️
-            </button>
-          </div>
-        </div>
-        <ChatList />
+      <div style={styles.topBar}>
+        <UserProfile />
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          style={styles.settingsBtn}
+          title="Settings"
+        >
+          ⚙️
+        </button>
       </div>
-      <div style={styles.main}>
+      <div style={styles.content}>
+        <div style={styles.sidebar}>
+          <div style={styles.header}>
+            <div style={styles.headerTop}>
+              <div style={styles.headerTitle}>
+                <div style={styles.logo}>💬</div>
+                <h2 style={styles.title}>Chats</h2>
+              </div>
+              <button
+                onClick={() => setIsNewChatOpen(true)}
+                style={styles.newChatBtn}
+                title="New Chat"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <ChatList />
+        </div>
+        <div style={styles.main}>
         {activeChat ? (
           <ChatWindow />
         ) : (
@@ -79,6 +77,7 @@ export default function ChatLayout() {
             </button>
           </div>
         )}
+        </div>
       </div>
       <NewChatModal
         isOpen={isNewChatOpen}
@@ -95,8 +94,26 @@ export default function ChatLayout() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
+    flexDirection: 'column',
     height: '100vh',
     backgroundColor: '#f0f2f5',
+    overflow: 'hidden',
+  },
+  topBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0.75rem 1rem',
+    backgroundColor: 'white',
+    borderBottom: '1px solid #e0e0e0',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    zIndex: 10,
+    flexShrink: 0,
+  },
+  content: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
   },
   sidebar: {
     width: '360px',
@@ -105,6 +122,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     backgroundColor: 'white',
     boxShadow: '2px 0 4px rgba(0,0,0,0.05)',
+    overflow: 'hidden',
+    flexShrink: 0,
   },
   header: {
     borderBottom: '1px solid #e0e0e0',
@@ -146,44 +165,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     fontWeight: '300',
     transition: 'background-color 0.2s',
-  },
-  userSection: {
-    padding: '1rem 1.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    backgroundColor: 'white',
-    borderTop: '1px solid #e0e0e0',
-  },
-  userAvatar: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: '#007bff',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '1.1rem',
-    fontWeight: '600',
-    flexShrink: 0,
-  },
-  userInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  userName: {
-    fontWeight: '600',
-    fontSize: '0.9375rem',
-    color: '#333',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  userStatus: {
-    fontSize: '0.75rem',
-    color: '#4caf50',
-    marginTop: '0.25rem',
   },
   settingsBtn: {
     background: 'none',

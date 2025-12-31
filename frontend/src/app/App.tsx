@@ -7,13 +7,15 @@ import ChatLayout from '@/chat/ChatLayout'
 import { RealtimeProvider } from '@/realtime/RealtimeProvider'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loadUser } = useAuthStore()
+  const { isAuthenticated, loadUser, user } = useAuthStore()
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Only load user if authenticated but user data is missing
+    // This prevents unnecessary calls after login (user is already in store)
+    if (isAuthenticated && !user) {
       loadUser()
     }
-  }, [isAuthenticated, loadUser])
+  }, [isAuthenticated, user, loadUser])
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

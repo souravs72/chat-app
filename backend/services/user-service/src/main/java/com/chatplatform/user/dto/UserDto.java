@@ -9,6 +9,7 @@ public class UserDto {
     private String email;
     private String status;
     private LocalDateTime lastSeen;
+    private String profilePicture;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -27,5 +28,8 @@ public class UserDto {
 
     public LocalDateTime getLastSeen() { return lastSeen; }
     public void setLastSeen(LocalDateTime lastSeen) { this.lastSeen = lastSeen; }
+
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
 }
 

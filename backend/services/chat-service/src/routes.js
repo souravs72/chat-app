@@ -18,7 +18,7 @@ export function setupRoutes(app) {
       // Get members for each chat
       const chats = await Promise.all(result.rows.map(async (chat) => {
         const membersResult = await pool.query(`
-          SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen
+          SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen, u.profile_picture
           FROM chat_members cm
           LEFT JOIN users u ON cm.user_id = u.id
           WHERE cm.chat_id = $1
@@ -43,6 +43,7 @@ export function setupRoutes(app) {
               phone: row.phone,
               status: row.status,
               lastSeen: row.last_seen,
+              profilePicture: row.profile_picture,
             } : null,
           })),
         }
@@ -83,7 +84,7 @@ export function setupRoutes(app) {
 
       // Get members
       const membersResult = await pool.query(`
-        SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen
+        SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen, u.profile_picture
         FROM chat_members cm
         LEFT JOIN users u ON cm.user_id = u.id
         WHERE cm.chat_id = $1
@@ -182,7 +183,7 @@ export function setupRoutes(app) {
       }
 
       let query = `
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.chat_id = $1
@@ -213,6 +214,7 @@ export function setupRoutes(app) {
           id: row.sender_id,
           name: row.sender_name,
           phone: row.sender_phone,
+          profilePicture: row.sender_profile_picture,
         } : null,
       }))
 
@@ -287,7 +289,7 @@ export function setupRoutes(app) {
 
       // Get message with sender info
       const messageResult = await pool.query(`
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.id = $1
@@ -357,7 +359,7 @@ export function setupRoutes(app) {
 
       // Get message with sender info
       const messageResult = await pool.query(`
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.id = $1

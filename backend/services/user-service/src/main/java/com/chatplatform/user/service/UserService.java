@@ -26,6 +26,7 @@ public class UserService {
         dto.setEmail(user.getEmail());
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
+        dto.setProfilePicture(user.getProfilePicture());
         return dto;
     }
 
@@ -50,11 +51,12 @@ public class UserService {
             dto.setEmail(user.getEmail());
             dto.setStatus(user.getStatus());
             dto.setLastSeen(user.getLastSeen());
+            dto.setProfilePicture(user.getProfilePicture());
             return dto;
         }).toList();
     }
 
-    public UserDto updateUser(String userId, String name, String email) {
+    public UserDto updateUser(String userId, String name, String email, String profilePicture) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -63,6 +65,9 @@ public class UserService {
         }
         if (email != null) {
             user.setEmail(email.trim().isEmpty() ? null : email.trim());
+        }
+        if (profilePicture != null) {
+            user.setProfilePicture(profilePicture.isEmpty() ? null : profilePicture);
         }
 
         user = userRepository.save(user);
@@ -74,6 +79,7 @@ public class UserService {
         dto.setEmail(user.getEmail());
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
+        dto.setProfilePicture(user.getProfilePicture());
         return dto;
     }
 }

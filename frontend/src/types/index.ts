@@ -7,6 +7,7 @@ export interface User {
   email?: string
   status: 'online' | 'offline'
   lastSeen?: string
+  profilePicture?: string
 }
 
 export interface Chat {

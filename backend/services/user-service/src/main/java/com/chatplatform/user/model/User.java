@@ -20,6 +20,9 @@ public class User {
 
     private String status;
     private LocalDateTime lastSeen;
+    
+    @Column(columnDefinition = "TEXT")
+    private String profilePicture;
 
     // Getters and setters
     public String getId() { return id; }
@@ -39,5 +42,8 @@ public class User {
 
     public LocalDateTime getLastSeen() { return lastSeen; }
     public void setLastSeen(LocalDateTime lastSeen) { this.lastSeen = lastSeen; }
+
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
 }
 

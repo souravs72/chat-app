@@ -119,8 +119,8 @@ class ApiClient {
     await this.client.post(`/chats/${chatId}/unblock`)
   }
 
-  async updateProfile(name?: string, email?: string): Promise<User> {
-    const response = await this.client.patch('/users/me', { name, email })
+  async updateProfile(name?: string, email?: string, profilePicture?: string | null): Promise<User> {
+    const response = await this.client.patch('/users/me', { name, email, profilePicture })
     return response.data
   }
 

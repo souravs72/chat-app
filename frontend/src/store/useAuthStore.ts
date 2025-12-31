@@ -38,10 +38,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await apiClient.getCurrentUser()
       set({ user })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load user:', error)
-      localStorage.removeItem('token')
-      set({ user: null, token: null, isAuthenticated: false })
+      // Only log out if it's an authentication error (401)
+      // Other errors (network, server) shouldn't log the user out
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token')
+        set({ user: null, token: null, isAuthenticated: false })
+      }
+      // For other errors, just log but don't change auth state
     }
   },
 }))
