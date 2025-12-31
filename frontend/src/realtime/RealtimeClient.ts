@@ -124,7 +124,7 @@ export class WebSocketTransport implements Transport {
 
 export class RealtimeClient {
   private transport: Transport
-  private eventHandlers: Map<string, Array<(payload: any) => void>> = new Map()
+  private eventHandlers: Map<string, Array<(payload: unknown) => void>> = new Map()
 
   constructor(transport: Transport) {
     this.transport = transport
@@ -143,7 +143,7 @@ export class RealtimeClient {
     this.transport.disconnect()
   }
 
-  subscribe(eventType: string, handler: (payload: any) => void): () => void {
+  subscribe(eventType: string, handler: (payload: unknown) => void): () => void {
     if (!this.eventHandlers.has(eventType)) {
       this.eventHandlers.set(eventType, [])
     }
@@ -159,7 +159,7 @@ export class RealtimeClient {
     }
   }
 
-  publish(eventType: string, payload: any): void {
+  publish(eventType: string, payload: unknown): void {
     this.transport.send({
       type: eventType,
       payload,

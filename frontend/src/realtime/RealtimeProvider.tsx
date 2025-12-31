@@ -1,18 +1,9 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
+import { useEffect, useState, useRef, ReactNode } from 'react'
 import { RealtimeClient, WebSocketTransport } from './RealtimeClient'
+import { RealtimeContext } from './RealtimeContext'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useChatStore } from '@/store/useChatStore'
 import type { Message, TypingIndicator } from '@/types'
-
-const RealtimeContext = createContext<RealtimeClient | null>(null)
-
-export function useRealtime() {
-  const context = useContext(RealtimeContext)
-  if (!context) {
-    throw new Error('useRealtime must be used within RealtimeProvider')
-  }
-  return context
-}
 
 interface RealtimeProviderProps {
   children: ReactNode

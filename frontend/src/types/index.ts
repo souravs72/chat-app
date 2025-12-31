@@ -51,7 +51,7 @@ export interface Story {
 
 export interface RealtimeEvent {
   type: string
-  payload: any
+  payload: unknown
   timestamp: string
 }
 

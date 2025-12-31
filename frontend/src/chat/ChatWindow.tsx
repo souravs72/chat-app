@@ -22,7 +22,7 @@ export default function ChatWindow() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+  }, [messages, activeChat?.id])
 
   // Cleanup typing indicator when chat changes or component unmounts
   useEffect(() => {

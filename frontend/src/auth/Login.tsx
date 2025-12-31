@@ -18,8 +18,9 @@ export default function Login() {
     try {
       await login(phone, password)
       navigate('/')
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      setError(error.response?.data?.message || 'Login failed')
     } finally {
       setLoading(false)
     }

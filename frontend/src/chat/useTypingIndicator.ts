@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react'
-import { useRealtime } from '@/realtime/RealtimeProvider'
+import { useRealtime } from '@/realtime/useRealtime'
 import { useAuthStore } from '@/store/useAuthStore'
 
 /**

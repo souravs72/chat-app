@@ -21,8 +21,9 @@ export async function uploadProfilePicture(
     })
 
     await onSuccess(mediaUrl)
-  } catch (error: any) {
-    if (error.response?.status === 503 || error.response?.status === 500) {
+  } catch (error: unknown) {
+    const err = error as { response?: { status?: number } }
+    if (err.response?.status === 503 || err.response?.status === 500) {
       const compressed = await compressImage(
         imageUrl,
         PROFILE_PIC_MAX_SIZE,

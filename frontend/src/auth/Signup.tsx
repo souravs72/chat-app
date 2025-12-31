@@ -20,8 +20,9 @@ export default function Signup() {
     try {
       await signup(name, phone, password, email || undefined)
       navigate('/')
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Signup failed')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      setError(error.response?.data?.message || 'Signup failed')
     } finally {
       setLoading(false)
     }

@@ -87,7 +87,7 @@ class ApiClient {
   }
 
   async getMessages(chatId: string, limit: number = 50, before?: string): Promise<Message[]> {
-    const params: any = { limit }
+    const params: Record<string, string | number> = { limit }
     if (before) params.before = before
     const response = await this.client.get(`/chats/${chatId}/messages`, { params })
     return response.data
