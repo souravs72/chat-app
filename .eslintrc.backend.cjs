@@ -26,3 +26,4 @@ module.exports = {
   ignorePatterns: ['node_modules/', 'dist/', 'target/', '*.min.js'],
 };
 
+

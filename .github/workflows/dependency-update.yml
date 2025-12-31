@@ -9,7 +9,7 @@ jobs:
   check-updates:
     name: Check for Dependency Updates
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,14 +40,14 @@ jobs:
           script: |
             const title = '🔔 Dependency Updates Available';
             const body = `Automated dependency check found updates. Please review and update dependencies when ready.`;
-            
+
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
               labels: 'dependencies'
             });
-            
+
             if (issues.length === 0) {
               await github.rest.issues.create({
                 owner: context.repo.owner,
@@ -57,4 +57,3 @@ jobs:
                 labels: ['dependencies', 'automated']
               });
             }
-
