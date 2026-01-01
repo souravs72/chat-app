@@ -7,6 +7,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Current State**: The platform has a solid microservices architecture foundation with event-driven communication. However, several critical scalability bottlenecks need to be addressed before it can handle millions of users and billions of chats.
 
 **Overall Assessment**:
+
 - ✅ **Architecture**: Well-designed microservices with proper separation of concerns
 - ⚠️ **Database**: Single PostgreSQL instance will become a bottleneck
 - ⚠️ **Caching**: No caching layer implemented
@@ -22,6 +23,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ⚠️ **Needs Improvement**
 
 ### Current Implementation
+
 - Simple HTTP proxy using `http-proxy-middleware`
 - No load balancing logic
 - No rate limiting
@@ -32,6 +34,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Concerns
 
 #### ❌ Critical Issues
+
 1. **No Rate Limiting**: Vulnerable to DDoS attacks and abuse
 2. **No Request Queuing**: Will drop requests under high load
 3. **No Circuit Breakers**: Cascading failures possible
@@ -40,6 +43,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 6. **WebSocket Proxying Incomplete**: Clients must connect directly to chat-service
 
 #### ⚠️ Performance Issues
+
 - No request/response compression
 - No connection pooling to backend services
 - Synchronous proxying (blocks until response)
@@ -80,7 +84,8 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Distributed tracing (OpenTelemetry)
    - Health check aggregation
 
-**Estimated Capacity**: 
+**Estimated Capacity**:
+
 - Current: ~1,000 requests/second
 - With improvements: 10,000+ requests/second
 
@@ -91,6 +96,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ✅ **Robust** (with minor improvements needed)
 
 ### Current Implementation
+
 - Spring Boot with JPA/Hibernate
 - Flyway migrations
 - BCrypt password hashing
@@ -101,6 +107,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Assessment
 
 #### ✅ Strengths
+
 1. **Stateless Design**: Can scale horizontally
 2. **Proper Password Hashing**: BCrypt with salt
 3. **JWT Tokens**: No server-side session storage
@@ -141,6 +148,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Recommendations for Scale
 
 1. **Connection Pool Tuning**
+
    ```properties
    spring.datasource.hikari.maximum-pool-size=50
    spring.datasource.hikari.minimum-idle=10
@@ -168,6 +176,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Write to primary, read from replicas
 
 **Estimated Capacity**:
+
 - Current: ~5,000 logins/second
 - With improvements: 50,000+ logins/second
 
@@ -178,6 +187,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ⚠️ **Needs Improvement**
 
 ### Current Implementation
+
 - Spring Boot with JPA/Hibernate
 - User profile management
 - Status updates (online/offline)
@@ -187,6 +197,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Assessment
 
 #### ✅ Strengths
+
 1. **Stateless Design**: Can scale horizontally
 2. **Proper ORM**: JPA/Hibernate with connection pooling
 3. **Database Migrations**: Flyway ensures consistency
@@ -250,6 +261,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Separate pools for read/write if using read replicas
 
 **Estimated Capacity**:
+
 - Current: ~2,000 requests/second
 - With improvements: 20,000+ requests/second
 
@@ -260,6 +272,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ❌ **Critical Issues - Major Refactoring Needed**
 
 ### Current Implementation
+
 - Express.js with WebSocket support
 - PostgreSQL for message storage
 - RabbitMQ for event publishing
@@ -269,12 +282,13 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Assessment
 
 #### ✅ **FIXED** - WebSocket Scaling
-   - ✅ **Redis pub/sub implemented** for cross-instance communication
-   - ✅ Each instance subscribes to user-specific channels
-   - ✅ Messages published to Redis are received by all instances
-   - ✅ Instance ID prevents message loops (messages ignored from same instance)
-   - ✅ Horizontal scaling is now possible
-   - ✅ Graceful degradation if Redis is unavailable (falls back to local-only)
+
+- ✅ **Redis pub/sub implemented** for cross-instance communication
+- ✅ Each instance subscribes to user-specific channels
+- ✅ Messages published to Redis are received by all instances
+- ✅ Instance ID prevents message loops (messages ignored from same instance)
+- ✅ Horizontal scaling is now possible
+- ✅ Graceful degradation if Redis is unavailable (falls back to local-only)
 
 #### ❌ Remaining Critical Issues
 
@@ -340,13 +354,14 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Use database read replicas for message queries
 
 5. **Connection Pool Configuration**
+
    ```javascript
    const pool = new Pool({
-     max: 50,                    // Maximum connections
-     min: 10,                    // Minimum idle connections
-     idleTimeoutMillis: 30000,   // Close idle connections
+     max: 50, // Maximum connections
+     min: 10, // Minimum idle connections
+     idleTimeoutMillis: 30000, // Close idle connections
      connectionTimeoutMillis: 2000, // Connection timeout
-   })
+   });
    ```
 
 6. **Implement Rate Limiting**
@@ -366,6 +381,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Cache hit rates
 
 **Estimated Capacity**:
+
 - Current: ~500 concurrent users per instance (limited by in-memory storage)
 - With improvements: 10,000+ concurrent users per instance, unlimited with horizontal scaling
 
@@ -376,6 +392,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ✅ **Robust** (minor improvements)
 
 ### Current Implementation
+
 - Express.js
 - AWS S3 pre-signed URL generation
 - Direct client-to-S3 upload flow
@@ -384,6 +401,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Assessment
 
 #### ✅ Strengths
+
 1. **Direct Upload Flow**: Clients upload directly to S3 (no server bottleneck)
 2. **Pre-signed URLs**: Secure, time-limited access
 3. **Stateless**: Can scale horizontally
@@ -444,6 +462,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Alert on unusual patterns
 
 **Estimated Capacity**:
+
 - Current: ~10,000 URL generations/second (limited by S3 API)
 - With improvements: Same (S3 is the bottleneck, but can handle millions)
 
@@ -454,6 +473,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ⚠️ **Needs Improvement**
 
 ### Current Implementation
+
 - Express.js
 - PostgreSQL for story storage
 - Cron job for cleanup (runs every hour)
@@ -462,6 +482,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 ### Scalability Assessment
 
 #### ✅ Strengths
+
 1. **Automatic Expiration**: Stories expire after 24 hours
 2. **Cron-based Cleanup**: Automated cleanup of expired stories
 3. **Stateless Design**: Can scale horizontally
@@ -525,6 +546,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Alert on cleanup failures
 
 **Estimated Capacity**:
+
 - Current: ~1,000 stories/second
 - With improvements: 10,000+ stories/second
 
@@ -535,6 +557,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ❌ **Incomplete - Needs Major Work**
 
 ### Current Implementation
+
 - Spring Boot
 - RabbitMQ consumer
 - Basic event handling
@@ -615,6 +638,7 @@ This document provides a comprehensive analysis of all services in the chat plat
    - Store notification history (optional, for analytics)
 
 **Estimated Capacity**:
+
 - Current: ~100 notifications/second (limited by single consumer)
 - With improvements: 10,000+ notifications/second
 
@@ -627,6 +651,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ❌ **Will Become Bottleneck**
 
 #### Issues
+
 1. **Single Instance**: No read replicas
 2. **No Sharding**: All data in single database
 3. **No Partitioning**: Large tables will become slow
@@ -671,6 +696,7 @@ This document provides a comprehensive analysis of all services in the chat plat
 **Status**: ⚠️ **Needs Configuration Tuning**
 
 #### Issues
+
 1. **No Clustering**: Single instance
 2. **No Persistence Configuration**: Default settings may not be optimal
 3. **No Queue Limits**: Queues can grow unbounded
@@ -768,12 +794,14 @@ This document provides a comprehensive analysis of all services in the chat plat
 ## Capacity Estimates
 
 ### Current Capacity (Without Improvements)
+
 - **Concurrent Users**: ~1,000 (limited by WebSocket scaling)
 - **Messages/Second**: ~500
 - **API Requests/Second**: ~2,000
 - **Database Connections**: ~100 (PostgreSQL default)
 
 ### Estimated Capacity (With All Improvements)
+
 - **Concurrent Users**: 1,000,000+ (with horizontal scaling)
 - **Messages/Second**: 100,000+
 - **API Requests/Second**: 50,000+
@@ -815,10 +843,10 @@ The platform has a **solid architectural foundation** with microservices, event-
 
 With the recommended improvements, the platform can scale to **millions of users and billions of chats**. The key is implementing these changes in phases, starting with the most critical issues.
 
-**Overall Grade**: 
+**Overall Grade**:
+
 - **Architecture**: A
 - **Current Scalability**: D
 - **Scalability Potential**: A (with improvements)
 - **Robustness**: C
 - **Efficiency**: C
-

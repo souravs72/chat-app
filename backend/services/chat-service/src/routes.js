@@ -197,6 +197,7 @@ export function setupRoutes(app) {
       const { chatId } = req.params
       const { limit = 50, before } = req.query
       const userId = req.userId
+      const limitNum = Math.min(parseInt(limit) || 50, 100) // Max 100 messages per request
 
       // Verify user is member
       const memberCheck = await pool.query(
@@ -206,6 +207,12 @@ export function setupRoutes(app) {
 
       if (memberCheck.rows.length === 0) {
         return res.status(403).json({ message: 'Not a member of this chat' })
+      }
+
+      // Try cache first (only for recent messages without pagination or with before param)
+      const cachedMessages = await chatCache.getMessages(chatId, limitNum, before || null)
+      if (cachedMessages) {
+        return res.json(cachedMessages)
       }
 
       let query = `
@@ -338,6 +345,9 @@ export function setupRoutes(app) {
         },
       }
 
+      // Invalidate message cache for this chat
+      await chatCache.invalidateMessages(chatId)
+
       // Publish event to message broker
       await publishEvent('message.sent', {
         message,
@@ -407,6 +417,9 @@ export function setupRoutes(app) {
           phone: messageResult.rows[0].sender_phone,
         },
       }
+
+      // Invalidate message cache for this chat
+      await chatCache.invalidateMessages(chatId)
 
       // Publish event to message broker
       await publishEvent('message.sent', {

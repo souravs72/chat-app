@@ -10,7 +10,9 @@ class ChatCacheService {
     this.isConnected = false
     this.CHAT_CACHE_PREFIX = 'chat:'
     this.CHAT_LIST_CACHE_PREFIX = 'chatlist:'
+    this.MESSAGES_CACHE_PREFIX = 'messages:'
     this.CHAT_CACHE_TTL_SECONDS = 60 // 1 minute
+    this.MESSAGES_CACHE_TTL_SECONDS = 300 // 5 minutes for messages
   }
 
   /**
@@ -194,6 +196,78 @@ class ChatCacheService {
       }
     } catch (error) {
       console.error('[ChatCache] Error invalidating chat list for users:', error)
+    }
+  }
+
+  /**
+   * Get recent messages from cache
+   * @param {string} chatId - Chat ID
+   * @param {number} limit - Number of messages to retrieve
+   * @param {string|null} before - Timestamp to fetch messages before (for pagination)
+   * @returns {Promise<Array|null>} - Cached messages or null
+   */
+  async getMessages(chatId, limit, before = null) {
+    if (!this.isConnected || !this.client) {
+      return null
+    }
+
+    try {
+      // Create cache key based on chatId, limit, and before timestamp
+      const cacheKey = before 
+        ? `${this.MESSAGES_CACHE_PREFIX}${chatId}:${limit}:${before}`
+        : `${this.MESSAGES_CACHE_PREFIX}${chatId}:${limit}:latest`
+      
+      const cached = await this.client.get(cacheKey)
+      if (cached) {
+        return JSON.parse(cached)
+      }
+    } catch (error) {
+      console.error('[ChatCache] Error reading messages from cache:', error)
+    }
+    return null
+  }
+
+  /**
+   * Cache recent messages
+   * @param {string} chatId - Chat ID
+   * @param {number} limit - Number of messages cached
+   * @param {string|null} before - Timestamp used for pagination
+   * @param {Array} messages - Messages to cache
+   */
+  async setMessages(chatId, limit, before, messages) {
+    if (!this.isConnected || !this.client) {
+      return
+    }
+
+    try {
+      const cacheKey = before 
+        ? `${this.MESSAGES_CACHE_PREFIX}${chatId}:${limit}:${before}`
+        : `${this.MESSAGES_CACHE_PREFIX}${chatId}:${limit}:latest`
+      
+      await this.client.setEx(cacheKey, this.MESSAGES_CACHE_TTL_SECONDS, JSON.stringify(messages))
+    } catch (error) {
+      console.error('[ChatCache] Error caching messages:', error)
+    }
+  }
+
+  /**
+   * Invalidate message cache for a chat (when new message is sent)
+   * @param {string} chatId - Chat ID
+   */
+  async invalidateMessages(chatId) {
+    if (!this.isConnected || !this.client) {
+      return
+    }
+
+    try {
+      // Use pattern matching to delete all message cache keys for this chat
+      const pattern = `${this.MESSAGES_CACHE_PREFIX}${chatId}:*`
+      const keys = await this.client.keys(pattern)
+      if (keys.length > 0) {
+        await this.client.del(keys)
+      }
+    } catch (error) {
+      console.error('[ChatCache] Error invalidating messages cache:', error)
     }
   }
 }
