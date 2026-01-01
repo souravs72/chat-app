@@ -116,9 +116,9 @@ export default function ChatList() {
                   <div style={styles.typingIndicator}>
                     <span style={styles.typingText}>typing</span>
                     <div style={styles.typingDots}>
-                      <span style={styles.typingDot} className="typing-dot-1"></span>
-                      <span style={styles.typingDot} className="typing-dot-2"></span>
-                      <span style={styles.typingDot} className="typing-dot-3"></span>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-1"></span>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-2"></span>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-3"></span>
                     </div>
                   </div>
                 ) : (
@@ -257,7 +257,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     backgroundColor: '#007bff',
     display: 'inline-block',
-    animation: 'typingBounce 1.4s infinite ease-in-out',
   },
 }
 

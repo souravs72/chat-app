@@ -70,7 +70,9 @@ export async function initializeRedisPubSub() {
     subscriber.on('connect', () =>
       console.warn('[RedisPubSub] Subscriber connecting...')
     );
-    subscriber.on('ready', () => console.warn('[RedisPubSub] Subscriber ready'));
+    subscriber.on('ready', () =>
+      console.warn('[RedisPubSub] Subscriber ready')
+    );
 
     await publisher.connect();
     await subscriber.connect();
