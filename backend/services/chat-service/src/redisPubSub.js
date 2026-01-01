@@ -1,108 +1,90 @@
-import { createClient } from 'redis'
-import { randomUUID } from 'crypto'
+import { createClient } from 'redis';
+import { randomUUID } from 'crypto';
 
 /**
  * Redis Pub/Sub for cross-instance WebSocket communication
  * Enables horizontal scaling of chat service instances
  */
 
-let publisher = null
-let subscriber = null
-let instanceId = null
+let publisher = null;
+let subscriber = null;
+let instanceId = null;
 
-const WEBSOCKET_CHANNEL_PREFIX = 'ws:broadcast:'
-const USER_CHANNEL_PREFIX = 'ws:user:'
-const CHAT_CHANNEL_PREFIX = 'ws:chat:'
+const USER_CHANNEL_PREFIX = 'ws:user:';
+const CHAT_CHANNEL_PREFIX = 'ws:chat:';
 
 /**
  * Initialize Redis pub/sub connections
  */
 export async function initializeRedisPubSub() {
   try {
-    const redisUrl = process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`
-    
-    instanceId = randomUUID() // Unique instance identifier
-    
-    // Create publisher client
-    publisher = createClient({
+    const redisUrl =
+      process.env.REDIS_URL ||
+      `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+
+    instanceId = randomUUID(); // Unique instance identifier
+
+    // Create base client
+    const baseClient = createClient({
       url: redisUrl,
       socket: {
-        reconnectStrategy: (retries) => {
+        reconnectStrategy: retries => {
           if (retries > 10) {
-            console.error('[RedisPubSub] Max reconnection attempts for publisher reached')
-            return new Error('Max reconnection attempts reached')
+            console.error('[RedisPubSub] Max reconnection attempts reached');
+            return new Error('Max reconnection attempts reached');
           }
-          return Math.min(retries * 100, 3000)
-        }
-      }
-    })
+          return Math.min(retries * 100, 3000);
+        },
+      },
+    });
 
-    publisher.on('error', (err) => console.error('[RedisPubSub] Publisher error:', err))
-    publisher.on('connect', () => console.log('[RedisPubSub] Publisher connecting...'))
-    publisher.on('ready', () => console.log('[RedisPubSub] Publisher ready'))
+    // Publisher is the base client
+    publisher = baseClient;
 
-    // Create subscriber client (separate connection required for pub/sub)
-    subscriber = createClient({
-      url: redisUrl,
+    publisher.on('error', err =>
+      console.error('[RedisPubSub] Publisher error:', err)
+    );
+    publisher.on('connect', () =>
+      console.warn('[RedisPubSub] Publisher connecting...')
+    );
+    publisher.on('ready', () => console.warn('[RedisPubSub] Publisher ready'));
+
+    // Create subscriber using duplicate() - required for pub/sub in Redis v4
+    subscriber = baseClient.duplicate({
       socket: {
-        reconnectStrategy: (retries) => {
+        reconnectStrategy: retries => {
           if (retries > 10) {
-            console.error('[RedisPubSub] Max reconnection attempts for subscriber reached')
-            return new Error('Max reconnection attempts reached')
+            console.error(
+              '[RedisPubSub] Max reconnection attempts for subscriber reached'
+            );
+            return new Error('Max reconnection attempts reached');
           }
-          return Math.min(retries * 100, 3000)
-        }
-      }
-    })
+          return Math.min(retries * 100, 3000);
+        },
+      },
+    });
 
-    subscriber.on('error', (err) => console.error('[RedisPubSub] Subscriber error:', err))
-    subscriber.on('connect', () => console.log('[RedisPubSub] Subscriber connecting...'))
-    subscriber.on('ready', () => console.log('[RedisPubSub] Subscriber ready'))
+    subscriber.on('error', err =>
+      console.error('[RedisPubSub] Subscriber error:', err)
+    );
+    subscriber.on('connect', () =>
+      console.warn('[RedisPubSub] Subscriber connecting...')
+    );
+    subscriber.on('ready', () => console.warn('[RedisPubSub] Subscriber ready'));
 
-    await publisher.connect()
-    await subscriber.connect()
-    
-    // Setup message handler for subscriber
-    setupSubscriberHandler()
+    await publisher.connect();
+    await subscriber.connect();
 
-    console.log(`[RedisPubSub] Initialized (instance: ${instanceId})`)
-    return { publisher, subscriber, instanceId }
+    console.warn(`[RedisPubSub] Initialized (instance: ${instanceId})`);
+    return { publisher, subscriber, instanceId };
   } catch (error) {
-    console.error('[RedisPubSub] Failed to initialize Redis pub/sub:', error)
-    throw error
+    console.error('[RedisPubSub] Failed to initialize Redis pub/sub:', error);
+    throw error;
   }
 }
 
 // Store handlers for each subscribed channel
-const channelHandlers = new Map()
-
-// Setup message handler once for all channels
-if (!channelHandlers.has('__setup__')) {
-  channelHandlers.set('__setup__', true)
-  // This will be set up after subscriber is connected
-}
-
-/**
- * Setup message handler for subscriber (call once after connection)
- */
-function setupSubscriberHandler() {
-  if (subscriber) {
-    subscriber.on('message', (channel, message) => {
-      try {
-        const handler = channelHandlers.get(channel)
-        if (handler) {
-          const event = JSON.parse(message)
-          // Ignore messages from the same instance to prevent loops
-          if (event.instanceId !== instanceId) {
-            handler(event)
-          }
-        }
-      } catch (error) {
-        console.error(`[RedisPubSub] Error handling message on channel ${channel}:`, error)
-      }
-    })
-  }
-}
+const channelHandlers = new Map();
 
 /**
  * Subscribe to user-specific channel for cross-instance broadcasts
@@ -111,23 +93,42 @@ function setupSubscriberHandler() {
  */
 export async function subscribeToUser(userId, handler) {
   if (!subscriber) {
-    console.warn('[RedisPubSub] Subscriber not initialized, cannot subscribe to user channel')
-    return
+    console.warn(
+      '[RedisPubSub] Subscriber not initialized, cannot subscribe to user channel'
+    );
+    return;
   }
 
   try {
-    const channel = USER_CHANNEL_PREFIX + userId
-    
-    // Setup handler mapping
-    channelHandlers.set(channel, handler)
-    
-    // Subscribe to channel (Redis v4 API)
-    await subscriber.subscribe([channel])
-    
-    console.log(`[RedisPubSub] Subscribed to user channel: ${channel}`)
+    const channel = USER_CHANNEL_PREFIX + userId;
+
+    // Store handler for this channel
+    channelHandlers.set(channel, handler);
+
+    // Subscribe to channel with handler as callback (Redis v4 API pattern)
+    // In Redis v4, the listener function is passed as second argument to subscribe()
+    await subscriber.subscribe(channel, (message, channelName) => {
+      try {
+        const event = JSON.parse(message);
+        // Ignore messages from the same instance to prevent loops
+        if (event.instanceId !== instanceId) {
+          const channelHandler = channelHandlers.get(channelName);
+          if (channelHandler) {
+            channelHandler(event);
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[RedisPubSub] Error handling message on channel ${channelName}:`,
+          error
+        );
+      }
+    });
+
+    console.warn(`[RedisPubSub] Subscribed to user channel: ${channel}`);
   } catch (error) {
-    console.error(`[RedisPubSub] Error subscribing to user ${userId}:`, error)
-    channelHandlers.delete(USER_CHANNEL_PREFIX + userId)
+    console.error(`[RedisPubSub] Error subscribing to user ${userId}:`, error);
+    channelHandlers.delete(USER_CHANNEL_PREFIX + userId);
   }
 }
 
@@ -138,20 +139,22 @@ export async function subscribeToUser(userId, handler) {
  */
 export async function publishToUser(userId, event) {
   if (!publisher) {
-    console.warn('[RedisPubSub] Publisher not initialized, cannot publish to user channel')
-    return
+    console.warn(
+      '[RedisPubSub] Publisher not initialized, cannot publish to user channel'
+    );
+    return;
   }
 
   try {
-    const channel = USER_CHANNEL_PREFIX + userId
+    const channel = USER_CHANNEL_PREFIX + userId;
     const message = JSON.stringify({
       ...event,
       instanceId, // Include instance ID to prevent echo
-      timestamp: new Date().toISOString()
-    })
-    await publisher.publish(channel, message)
+      timestamp: new Date().toISOString(),
+    });
+    await publisher.publish(channel, message);
   } catch (error) {
-    console.error(`[RedisPubSub] Error publishing to user ${userId}:`, error)
+    console.error(`[RedisPubSub] Error publishing to user ${userId}:`, error);
   }
 }
 
@@ -162,23 +165,41 @@ export async function publishToUser(userId, event) {
  */
 export async function subscribeToChat(chatId, handler) {
   if (!subscriber) {
-    console.warn('[RedisPubSub] Subscriber not initialized, cannot subscribe to chat channel')
-    return
+    console.warn(
+      '[RedisPubSub] Subscriber not initialized, cannot subscribe to chat channel'
+    );
+    return;
   }
 
   try {
-    const channel = CHAT_CHANNEL_PREFIX + chatId
-    
-    // Setup handler mapping
-    channelHandlers.set(channel, handler)
-    
-    // Subscribe to channel (Redis v4 API)
-    await subscriber.subscribe([channel])
-    
-    console.log(`[RedisPubSub] Subscribed to chat channel: ${channel}`)
+    const channel = CHAT_CHANNEL_PREFIX + chatId;
+
+    // Store handler for this channel
+    channelHandlers.set(channel, handler);
+
+    // Subscribe to channel with handler as callback (Redis v4 API pattern)
+    await subscriber.subscribe(channel, (message, channelName) => {
+      try {
+        const event = JSON.parse(message);
+        // Ignore messages from the same instance to prevent loops
+        if (event.instanceId !== instanceId) {
+          const channelHandler = channelHandlers.get(channelName);
+          if (channelHandler) {
+            channelHandler(event);
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[RedisPubSub] Error handling message on channel ${channelName}:`,
+          error
+        );
+      }
+    });
+
+    console.warn(`[RedisPubSub] Subscribed to chat channel: ${channel}`);
   } catch (error) {
-    console.error(`[RedisPubSub] Error subscribing to chat ${chatId}:`, error)
-    channelHandlers.delete(CHAT_CHANNEL_PREFIX + chatId)
+    console.error(`[RedisPubSub] Error subscribing to chat ${chatId}:`, error);
+    channelHandlers.delete(CHAT_CHANNEL_PREFIX + chatId);
   }
 }
 
@@ -189,20 +210,22 @@ export async function subscribeToChat(chatId, handler) {
  */
 export async function publishToChat(chatId, event) {
   if (!publisher) {
-    console.warn('[RedisPubSub] Publisher not initialized, cannot publish to chat channel')
-    return
+    console.warn(
+      '[RedisPubSub] Publisher not initialized, cannot publish to chat channel'
+    );
+    return;
   }
 
   try {
-    const channel = CHAT_CHANNEL_PREFIX + chatId
+    const channel = CHAT_CHANNEL_PREFIX + chatId;
     const message = JSON.stringify({
       ...event,
       instanceId,
-      timestamp: new Date().toISOString()
-    })
-    await publisher.publish(channel, message)
+      timestamp: new Date().toISOString(),
+    });
+    await publisher.publish(channel, message);
   } catch (error) {
-    console.error(`[RedisPubSub] Error publishing to chat ${chatId}:`, error)
+    console.error(`[RedisPubSub] Error publishing to chat ${chatId}:`, error);
   }
 }
 
@@ -210,14 +233,14 @@ export async function publishToChat(chatId, event) {
  * Get instance ID (for debugging/monitoring)
  */
 export function getInstanceId() {
-  return instanceId
+  return instanceId;
 }
 
 /**
  * Check if Redis pub/sub is available
  */
 export function isPubSubAvailable() {
-  return publisher !== null && subscriber !== null
+  return publisher !== null && subscriber !== null;
 }
 
 /**
@@ -225,15 +248,18 @@ export function isPubSubAvailable() {
  * @param {string} userId - User ID to unsubscribe from
  */
 export async function unsubscribeFromUser(userId) {
-  if (!subscriber) return
-  
+  if (!subscriber) return;
+
   try {
-    const channel = USER_CHANNEL_PREFIX + userId
-    await subscriber.unsubscribe([channel])
-    channelHandlers.delete(channel)
-    console.log(`[RedisPubSub] Unsubscribed from user channel: ${channel}`)
+    const channel = USER_CHANNEL_PREFIX + userId;
+    await subscriber.unsubscribe(channel);
+    channelHandlers.delete(channel);
+    console.warn(`[RedisPubSub] Unsubscribed from user channel: ${channel}`);
   } catch (error) {
-    console.error(`[RedisPubSub] Error unsubscribing from user ${userId}:`, error)
+    console.error(
+      `[RedisPubSub] Error unsubscribing from user ${userId}:`,
+      error
+    );
   }
 }
 
@@ -243,19 +269,18 @@ export async function unsubscribeFromUser(userId) {
 export async function closeRedisPubSub() {
   try {
     // Clear all handlers
-    channelHandlers.clear()
-    
+    channelHandlers.clear();
+
     if (subscriber) {
-      await subscriber.quit()
-      subscriber = null
+      await subscriber.quit();
+      subscriber = null;
     }
     if (publisher) {
-      await publisher.quit()
-      publisher = null
+      await publisher.quit();
+      publisher = null;
     }
-    console.log('[RedisPubSub] Connections closed')
+    console.warn('[RedisPubSub] Connections closed');
   } catch (error) {
-    console.error('[RedisPubSub] Error closing connections:', error)
+    console.error('[RedisPubSub] Error closing connections:', error);
   }
 }
-
