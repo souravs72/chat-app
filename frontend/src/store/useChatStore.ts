@@ -84,16 +84,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setTyping: (chatId: string, userId: string, isTyping: boolean) => {
     set((state) => {
-      const typingSet = state.typingUsers[chatId] || new Set()
+      const existingSet = state.typingUsers[chatId] || new Set<string>()
+      // Create a new Set to ensure Zustand detects the change
+      const newTypingSet = new Set(existingSet)
+      
       if (isTyping) {
-        typingSet.add(userId)
+        newTypingSet.add(userId)
       } else {
-        typingSet.delete(userId)
+        newTypingSet.delete(userId)
       }
+      
+      // If the set is empty, remove it from the record
+      if (newTypingSet.size === 0) {
+        const { [chatId]: _, ...restTypingUsers } = state.typingUsers
+        return {
+          typingUsers: restTypingUsers,
+        }
+      }
+      
       return {
         typingUsers: {
           ...state.typingUsers,
-          [chatId]: typingSet,
+          [chatId]: newTypingSet,
         },
       }
     })

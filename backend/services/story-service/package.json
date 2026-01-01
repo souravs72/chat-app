@@ -17,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
     "node-cron": "^3.0.3",
-    "node-pg-migrate": "^6.2.2"
+    "node-pg-migrate": "^6.2.2",
+    "redis": "^4.6.12"
   }
 }

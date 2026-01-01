@@ -1,0 +1,104 @@
+.attachment-button-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.attachment-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 1.25rem;
+  padding: 0;
+}
+
+.attachment-button:hover:not(:disabled) {
+  background-color: #f0f0f0;
+  color: #007bff;
+  transform: scale(1.05);
+}
+
+.attachment-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.attachment-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.attachment-button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attachment-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 8px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  min-width: 180px;
+  z-index: 1000;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.attachment-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+  text-align: left;
+  font-size: 0.9375rem;
+  color: #333;
+}
+
+.attachment-menu-item:hover {
+  background-color: #f0f2f5;
+}
+
+.attachment-menu-item:active {
+  background-color: #e4e6eb;
+}
+
+.attachment-menu-icon {
+  font-size: 1.25rem;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attachment-menu-label {
+  font-weight: 500;
+  flex: 1;
+}
+

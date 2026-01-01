@@ -1,9 +1,10 @@
 import { useChatStore } from '@/store/useChatStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { format } from 'date-fns'
+import Avatar from '@/components/Avatar'
 
 export default function ChatList() {
-  const { chats, selectChat, activeChat, lastMessages } = useChatStore()
+  const { chats, selectChat, activeChat, lastMessages, typingUsers } = useChatStore()
   const { user } = useAuthStore()
 
   const getChatDisplayName = (chat: typeof chats[0]) => {
@@ -15,19 +16,19 @@ export default function ChatList() {
     return otherMember?.user?.name || 'Unknown User'
   }
 
-  const getChatAvatar = (chat: typeof chats[0]) => {
-    if (chat.type === 'channel') {
-      return (chat.name || '#').charAt(0).toUpperCase()
-    }
-    const otherMember = chat.members?.find(m => m.user?.id !== user?.id)
-    return otherMember?.user?.name?.charAt(0).toUpperCase() || '?'
+  const getOtherUser = (chat: typeof chats[0]) => {
+    if (chat.type === 'channel') return null
+    return chat.members?.find(m => m.user?.id !== user?.id)?.user
   }
 
-  const getOtherUserStatus = (chat: typeof chats[0]) => {
-    if (chat.type === 'channel') return null
-    const otherMember = chat.members?.find(m => m.user?.id !== user?.id)
-    return otherMember?.user?.status
+  const isTyping = (chatId: string) => {
+    const typingUserIds = typingUsers[chatId]
+    if (!typingUserIds) return false
+    // Filter out current user (shouldn't see own typing indicator)
+    const filteredIds = Array.from(typingUserIds).filter(id => id !== user?.id)
+    return filteredIds.length > 0
   }
+
 
   const getLastMessagePreview = (chatId: string) => {
     const lastMessage = lastMessages[chatId]
@@ -73,7 +74,7 @@ export default function ChatList() {
     <div style={styles.container}>
       {chats.map((chat) => {
         const isActive = activeChat?.id === chat.id
-        const otherUserStatus = getOtherUserStatus(chat)
+        const otherUser = getOtherUser(chat)
         const lastMessage = lastMessages[chat.id]
         
         return (
@@ -86,10 +87,16 @@ export default function ChatList() {
           }}
         >
             <div style={styles.avatarContainer}>
-              <div style={styles.avatar}>
-                {getChatAvatar(chat)}
-              </div>
-              {otherUserStatus === 'online' && (
+              {chat.type === 'channel' ? (
+                <Avatar name={chat.name || '#'} size={50} />
+              ) : (
+                <Avatar
+                  src={otherUser?.profilePicture}
+                  name={otherUser?.name}
+                  size={50}
+                />
+              )}
+              {otherUser?.status === 'online' && (
                 <div style={styles.onlineIndicator} />
               )}
             </div>
@@ -105,9 +112,20 @@ export default function ChatList() {
                 )}
               </div>
               <div style={styles.chatPreview}>
-                <span style={styles.previewText}>
-                  {getLastMessagePreview(chat.id)}
-                </span>
+                {isTyping(chat.id) ? (
+                  <div style={styles.typingIndicator}>
+                    <span style={styles.typingText}>typing</span>
+                    <div style={styles.typingDots}>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-1"></span>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-2"></span>
+                      <span style={styles.typingDot} className="typing-dot typing-dot-3"></span>
+                    </div>
+                  </div>
+                ) : (
+                  <span style={styles.previewText}>
+                    {getLastMessagePreview(chat.id)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -158,18 +176,6 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     flexShrink: 0,
   },
-  avatar: {
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
-    backgroundColor: '#007bff',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '1.25rem',
-    fontWeight: '600',
-  },
   onlineIndicator: {
     position: 'absolute',
     bottom: '2px',
@@ -210,6 +216,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
+    minWidth: 0,
+    flex: 1,
   },
   previewText: {
     fontSize: '0.875rem',
@@ -218,6 +226,37 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     flex: 1,
+  },
+  typingIndicator: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+  },
+  typingText: {
+    fontSize: '0.875rem',
+    color: '#007bff',
+    fontStyle: 'italic',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flex: 1,
+    minWidth: 0,
+  },
+  typingDots: {
+    display: 'flex',
+    gap: '0.2rem',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  typingDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#007bff',
+    display: 'inline-block',
   },
 }
 

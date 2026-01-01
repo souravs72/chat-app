@@ -20,11 +20,11 @@ docker compose down -v 2>/dev/null || true
 
 echo ""
 echo "🔨 Building Docker images..."
-docker compose build --no-cache postgres rabbitmq api-gateway auth-service user-service notification-service chat-service media-service story-service frontend
+docker compose build --no-cache postgres rabbitmq redis api-gateway auth-service user-service notification-service chat-service media-service story-service frontend
 
 echo ""
-echo "🚀 Starting services..."
-docker compose up -d postgres rabbitmq
+echo "🚀 Starting infrastructure services..."
+docker compose up -d postgres rabbitmq redis
 
 echo "⏳ Waiting for infrastructure services to be healthy..."
 sleep 10
@@ -52,6 +52,10 @@ docker compose logs postgres | tail -20
 echo ""
 echo "=== RABBITMQ LOGS ==="
 docker compose logs rabbitmq | tail -20
+
+echo ""
+echo "=== REDIS LOGS ==="
+docker compose logs redis | tail -20
 
 echo ""
 echo "=== AUTH SERVICE LOGS ==="

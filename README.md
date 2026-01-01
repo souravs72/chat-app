@@ -19,6 +19,7 @@ See [INSTALLATION.md](./INSTALLATION.md) for detailed setup instructions.
 ## ✨ Features
 
 ### Core Functionality
+
 - **Real-time messaging** - One-to-one and group chats
 - **User management** - Signup, login, presence, last seen
 - **Media sharing** - Images, videos, audio, documents
@@ -27,6 +28,7 @@ See [INSTALLATION.md](./INSTALLATION.md) for detailed setup instructions.
 - **Read receipts** - Message delivery and read status
 
 ### Advanced Features
+
 - **Messages from non-contacts** - Receive messages from any user with block option
 - **Profile management** - Update name and email
 - **Online/offline presence** - Real-time status updates
@@ -62,14 +64,14 @@ See [INSTALLATION.md](./INSTALLATION.md) for detailed setup instructions.
 
 ### Services
 
-| Service | Technology | Port | Purpose |
-|---------|-----------|------|---------|
-| API Gateway | Node.js | 8080 | Request routing |
-| Auth Service | Spring Boot | 8081 | Authentication |
-| User Service | Spring Boot | 8082 | User management |
-| Chat Service | Node.js | 3001 | Messaging |
-| Media Service | Node.js | 3002 | Media handling |
-| Story Service | Node.js | 3003 | Stories |
+| Service              | Technology  | Port | Purpose            |
+| -------------------- | ----------- | ---- | ------------------ |
+| API Gateway          | Node.js     | 8080 | Request routing    |
+| Auth Service         | Spring Boot | 8081 | Authentication     |
+| User Service         | Spring Boot | 8082 | User management    |
+| Chat Service         | Node.js     | 3001 | Messaging          |
+| Media Service        | Node.js     | 3002 | Media handling     |
+| Story Service        | Node.js     | 3003 | Stories            |
 | Notification Service | Spring Boot | 8083 | Push notifications |
 
 ## 📁 Project Structure
@@ -101,6 +103,7 @@ chat/
 ## 🛠️ Development
 
 ### Prerequisites
+
 - Node.js 18+
 - Java 17+
 - Docker & Docker Compose
@@ -136,9 +139,10 @@ The CI pipeline runs on every push and pull request:
 - **Node.js Services**: Dependency installation and syntax validation for all Node.js services
 - **Java Services**: Maven tests and JAR building for Spring Boot services
 - **Docker Builds**: Validates all Docker images build successfully
-- **Integration Tests**: Full docker-compose validation on main/develop branches
+- **Integration Tests**: Full docker-compose validation on main/dev branches
 
 **Features:**
+
 - ✅ Parallel execution for faster builds
 - ✅ Smart dependency caching (npm, Maven)
 - ✅ Docker layer caching
@@ -148,6 +152,7 @@ The CI pipeline runs on every push and pull request:
 ### Code Quality
 
 Additional checks run automatically:
+
 - Secret scanning
 - Large file detection
 - YAML validation
@@ -156,6 +161,7 @@ Additional checks run automatically:
 ### Continuous Deployment
 
 Deployment workflow is available for:
+
 - Version tag releases (`v*.*.*`)
 - Manual deployment to staging/production
 

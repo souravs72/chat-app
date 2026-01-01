@@ -1,18 +1,9 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
+import { useEffect, useState, useRef, ReactNode } from 'react'
 import { RealtimeClient, WebSocketTransport } from './RealtimeClient'
+import { RealtimeContext } from './RealtimeContext'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useChatStore } from '@/store/useChatStore'
 import type { Message, TypingIndicator } from '@/types'
-
-const RealtimeContext = createContext<RealtimeClient | null>(null)
-
-export function useRealtime() {
-  const context = useContext(RealtimeContext)
-  if (!context) {
-    throw new Error('useRealtime must be used within RealtimeProvider')
-  }
-  return context
-}
 
 interface RealtimeProviderProps {
   children: ReactNode
@@ -42,11 +33,12 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
       unsubscribeRef.current = []
 
       // Subscribe to message events
-      const unsubMessage = realtimeClient.subscribe('MESSAGE_SENT', async (payload: Message) => {
+      const unsubMessage = realtimeClient.subscribe('MESSAGE_SENT', async (payload: unknown) => {
+        const message = payload as Message
         // Only add message if it's not from the current user (sender already has it from API response)
         // Backend already filters sender, but adding extra safety check
-        if (payload.senderId !== user.id) {
-        addMessage(payload)
+        if (message.senderId !== user.id) {
+        addMessage(message)
           // Reload chats to show new chats if message is from a new contact
           // Use setTimeout to debounce rapid chat reloads
           setTimeout(() => {
@@ -57,19 +49,22 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
       unsubscribeRef.current.push(unsubMessage)
 
       // Subscribe to typing indicators
-      const unsubTyping = realtimeClient.subscribe('TYPING_INDICATOR', (payload: TypingIndicator) => {
-        setTyping(payload.chatId, payload.userId, payload.isTyping)
+      const unsubTyping = realtimeClient.subscribe('TYPING_INDICATOR', (payload: unknown) => {
+        const typing = payload as TypingIndicator
+        setTyping(typing.chatId, typing.userId, typing.isTyping)
       })
       unsubscribeRef.current.push(unsubTyping)
 
       // Subscribe to user presence
-      const unsubConnected = realtimeClient.subscribe('USER_CONNECTED', (payload: { userId: string }) => {
-        console.log('User connected:', payload.userId)
+      const unsubConnected = realtimeClient.subscribe('USER_CONNECTED', (payload: unknown) => {
+        const data = payload as { userId: string }
+        console.log('User connected:', data.userId)
       })
       unsubscribeRef.current.push(unsubConnected)
 
-      const unsubDisconnected = realtimeClient.subscribe('USER_DISCONNECTED', (payload: { userId: string }) => {
-        console.log('User disconnected:', payload.userId)
+      const unsubDisconnected = realtimeClient.subscribe('USER_DISCONNECTED', (payload: unknown) => {
+        const data = payload as { userId: string }
+        console.log('User disconnected:', data.userId)
       })
       unsubscribeRef.current.push(unsubDisconnected)
     }).catch((error) => {

@@ -1,12 +1,21 @@
 import { pool } from './db.js'
 import { randomUUID as uuidv4 } from 'crypto'
 import { publishEvent } from './events.js'
+import { chatCache } from './cache.js'
+import { broadcastToUser } from './websocket.js'
 
 export function setupRoutes(app) {
   // Get all chats for user
   app.get('/api/chats', async (req, res) => {
     try {
       const userId = req.userId
+
+      // Try cache first
+      const cached = await chatCache.getChatList(userId)
+      if (cached) {
+        return res.json(cached)
+      }
+
       const result = await pool.query(`
         SELECT DISTINCT c.*
         FROM chats c
@@ -18,7 +27,7 @@ export function setupRoutes(app) {
       // Get members for each chat
       const chats = await Promise.all(result.rows.map(async (chat) => {
         const membersResult = await pool.query(`
-          SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen
+          SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen, u.profile_picture
           FROM chat_members cm
           LEFT JOIN users u ON cm.user_id = u.id
           WHERE cm.chat_id = $1
@@ -31,7 +40,10 @@ export function setupRoutes(app) {
         }
 
         return {
-          ...chat,
+          id: chat.id,
+          type: chat.type,
+          name: chat.name,
+          createdAt: chat.created_at,
           members: membersResult.rows.map(row => ({
             chatId: row.chat_id,
             userId: row.user_id,
@@ -43,6 +55,7 @@ export function setupRoutes(app) {
               phone: row.phone,
               status: row.status,
               lastSeen: row.last_seen,
+              profilePicture: row.profile_picture,
             } : null,
           })),
         }
@@ -50,6 +63,9 @@ export function setupRoutes(app) {
 
       // Filter out null chats (self-only chats)
       const filteredChats = chats.filter(chat => chat !== null)
+
+      // Cache the result
+      await chatCache.setChatList(userId, filteredChats)
 
       res.json(filteredChats)
     } catch (error) {
@@ -74,6 +90,12 @@ export function setupRoutes(app) {
         return res.status(403).json({ message: 'Not a member of this chat' })
       }
 
+      // Try cache first
+      const cached = await chatCache.getChat(chatId)
+      if (cached) {
+        return res.json(cached)
+      }
+
       const chatResult = await pool.query('SELECT * FROM chats WHERE id = $1', [chatId])
       if (chatResult.rows.length === 0) {
         return res.status(404).json({ message: 'Chat not found' })
@@ -83,27 +105,37 @@ export function setupRoutes(app) {
 
       // Get members
       const membersResult = await pool.query(`
-        SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen
+        SELECT cm.*, u.id as user_id, u.name, u.phone, u.status, u.last_seen, u.profile_picture
         FROM chat_members cm
         LEFT JOIN users u ON cm.user_id = u.id
         WHERE cm.chat_id = $1
       `, [chatId])
 
-      chat.members = membersResult.rows.map(row => ({
-        chatId: row.chat_id,
-        userId: row.user_id,
-        role: row.role,
-        blocked: row.blocked || false,
-        user: row.user_id ? {
-          id: row.user_id,
-          name: row.name,
-          phone: row.phone,
-          status: row.status,
-          lastSeen: row.last_seen,
-        } : null,
-      }))
+      const chatWithMembers = {
+        id: chat.id,
+        type: chat.type,
+        name: chat.name,
+        createdAt: chat.created_at,
+        members: membersResult.rows.map(row => ({
+          chatId: row.chat_id,
+          userId: row.user_id,
+          role: row.role,
+          blocked: row.blocked || false,
+          user: row.user_id ? {
+            id: row.user_id,
+            name: row.name,
+            phone: row.phone,
+            status: row.status,
+            lastSeen: row.last_seen,
+            profilePicture: row.profile_picture,
+          } : null,
+        })),
+      }
 
-      res.json(chat)
+      // Cache the result
+      await chatCache.setChat(chatId, chatWithMembers)
+
+      res.json(chatWithMembers)
     } catch (error) {
       console.error('Error fetching chat:', error)
       res.status(500).json({ message: 'Failed to fetch chat' })
@@ -138,6 +170,9 @@ export function setupRoutes(app) {
       await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, currentUserId])
       await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, otherUserId])
 
+      // Invalidate cache for both users
+      await chatCache.invalidateChatListForUsers([currentUserId, otherUserId])
+
       res.json({ id: chatId, type: 'personal' })
     } catch (error) {
       console.error('Error creating personal chat:', error)
@@ -157,6 +192,9 @@ export function setupRoutes(app) {
       // Add creator as admin
       await pool.query('INSERT INTO chat_members (chat_id, user_id, role) VALUES ($1, $2, $3)', [chatId, userId, 'admin'])
 
+      // Invalidate cache for creator
+      await chatCache.invalidateChatList(userId)
+
       res.json({ id: chatId, type: 'channel', name })
     } catch (error) {
       console.error('Error creating channel:', error)
@@ -170,6 +208,7 @@ export function setupRoutes(app) {
       const { chatId } = req.params
       const { limit = 50, before } = req.query
       const userId = req.userId
+      const limitNum = Math.min(parseInt(limit) || 50, 100) // Max 100 messages per request
 
       // Verify user is member
       const memberCheck = await pool.query(
@@ -181,8 +220,14 @@ export function setupRoutes(app) {
         return res.status(403).json({ message: 'Not a member of this chat' })
       }
 
+      // Try cache first (only for recent messages without pagination or with before param)
+      const cachedMessages = await chatCache.getMessages(chatId, limitNum, before || null)
+      if (cachedMessages) {
+        return res.json(cachedMessages)
+      }
+
       let query = `
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.chat_id = $1
@@ -197,7 +242,7 @@ export function setupRoutes(app) {
         query += ' ORDER BY m.created_at DESC LIMIT $2'
       }
 
-      params.push(parseInt(limit))
+      params.push(limitNum)
 
       const result = await pool.query(query, params)
 
@@ -213,10 +258,16 @@ export function setupRoutes(app) {
           id: row.sender_id,
           name: row.sender_name,
           phone: row.sender_phone,
+          profilePicture: row.sender_profile_picture,
         } : null,
       }))
 
-      res.json(messages.reverse())
+      const reversedMessages = messages.reverse()
+
+      // Cache the fetched messages for future requests
+      await chatCache.setMessages(chatId, limitNum, before || null, reversedMessages)
+
+      res.json(reversedMessages)
     } catch (error) {
       console.error('Error fetching messages:', error)
       res.status(500).json({ message: 'Failed to fetch messages' })
@@ -251,7 +302,7 @@ export function setupRoutes(app) {
       }
 
       // Find or create personal chat
-      let chatResult = await pool.query(`
+      const chatResult = await pool.query(`
         SELECT c.id
         FROM chats c
         INNER JOIN chat_members cm1 ON c.id = cm1.chat_id
@@ -270,6 +321,8 @@ export function setupRoutes(app) {
         await pool.query('INSERT INTO chats (id, type) VALUES ($1, $2)', [chatId, 'personal'])
         await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, senderId])
         await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, recipientId])
+        // Invalidate cache for both users
+        await chatCache.invalidateChatListForUsers([senderId, recipientId])
       }
 
       // Unblock user if they're replying (sending a message)
@@ -287,7 +340,7 @@ export function setupRoutes(app) {
 
       // Get message with sender info
       const messageResult = await pool.query(`
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.id = $1
@@ -308,7 +361,25 @@ export function setupRoutes(app) {
         },
       }
 
-      // Publish event to message broker
+      // Invalidate message cache for this chat
+      await chatCache.invalidateMessages(chatId)
+
+      // Broadcast message to recipient immediately via WebSocket
+      // This ensures real-time delivery in addition to RabbitMQ event
+      broadcastToUser(recipientId, {
+        type: 'MESSAGE_SENT',
+        payload: message,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Clear typing indicator for sender - broadcast to recipient
+      broadcastToUser(recipientId, {
+        type: 'TYPING_INDICATOR',
+        payload: { chatId, userId: senderId, isTyping: false },
+        timestamp: new Date().toISOString(),
+      })
+
+      // Publish event to message broker (for other services like notifications)
       await publishEvent('message.sent', {
         message,
         chatId,
@@ -357,7 +428,7 @@ export function setupRoutes(app) {
 
       // Get message with sender info
       const messageResult = await pool.query(`
-        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone
+        SELECT m.*, u.id as sender_id, u.name as sender_name, u.phone as sender_phone, u.profile_picture as sender_profile_picture
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.id = $1
@@ -378,7 +449,39 @@ export function setupRoutes(app) {
         },
       }
 
-      // Publish event to message broker
+      // Invalidate message cache for this chat
+      await chatCache.invalidateMessages(chatId)
+
+      // Get chat members for broadcasting
+      const membersResult = await pool.query(
+        'SELECT user_id FROM chat_members WHERE chat_id = $1',
+        [chatId]
+      )
+
+      // Broadcast message to all chat members except sender immediately via WebSocket
+      // This ensures real-time delivery in addition to RabbitMQ event
+      membersResult.rows.forEach(row => {
+        if (row.user_id !== userId) {
+          broadcastToUser(row.user_id, {
+            type: 'MESSAGE_SENT',
+            payload: message,
+            timestamp: new Date().toISOString(),
+          })
+        }
+      })
+
+      // Clear typing indicator for sender - broadcast to all other members
+      membersResult.rows.forEach(row => {
+        if (row.user_id !== userId) {
+          broadcastToUser(row.user_id, {
+            type: 'TYPING_INDICATOR',
+            payload: { chatId, userId, isTyping: false },
+            timestamp: new Date().toISOString(),
+          })
+        }
+      })
+
+      // Publish event to message broker (for other services like notifications)
       await publishEvent('message.sent', {
         message,
         chatId,

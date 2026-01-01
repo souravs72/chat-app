@@ -57,7 +57,7 @@ public class UserController {
             @RequestBody UpdateProfileRequest request,
             HttpServletRequest httpRequest) {
         String userId = getUserIdFromRequest(httpRequest);
-        UserDto user = userService.updateUser(userId, request.getName(), request.getEmail());
+        UserDto user = userService.updateUser(userId, request.getName(), request.getEmail(), request.getProfilePicture());
         return ResponseEntity.ok(user);
     }
 
@@ -79,10 +79,13 @@ public class UserController {
     static class UpdateProfileRequest {
         private String name;
         private String email;
+        private String profilePicture;
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
+        public String getProfilePicture() { return profilePicture; }
+        public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
     }
 }
 

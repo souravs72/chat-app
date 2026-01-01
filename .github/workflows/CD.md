@@ -8,7 +8,7 @@ This repository uses GitHub Actions for Continuous Integration and Continuous De
 
 ### 1. CI Workflow (`.github/workflows/ci.yml`)
 
-Runs on every push to `main`/`develop` and on pull requests.
+Runs on every push to `main`/`dev` and on pull requests.
 
 **Jobs:**
 
@@ -16,10 +16,11 @@ Runs on every push to `main`/`develop` and on pull requests.
 - **Node.js Services**: Tests and validates all Node.js services (API Gateway, Chat, Media, Story)
 - **Java Services**: Runs Maven tests and builds JARs for Spring Boot services (Auth, User, Notification)
 - **Docker Build**: Builds Docker images for all services in parallel
-- **Integration Test**: Validates docker-compose configuration (runs on main/develop pushes only)
+- **Integration Test**: Validates docker-compose configuration (runs on main/dev pushes only)
 - **CI Success**: Final validation that all checks passed
 
 **Features:**
+
 - ✅ Parallel execution for faster builds
 - ✅ Dependency caching (npm, Maven)
 - ✅ Matrix strategy for similar services
@@ -32,6 +33,7 @@ Runs on every push to `main`/`develop` and on pull requests.
 Runs alongside CI to check code quality and security.
 
 **Checks:**
+
 - Large file detection (> 1MB)
 - Secret scanning (TruffleHog)
 - YAML validation
@@ -69,6 +71,7 @@ The following environment variables are set in the workflows:
 - `JAVA_VERSION`: '17'
 
 For production deployments, set these as repository secrets:
+
 - Database credentials
 - JWT secrets
 - AWS credentials (for media service)
@@ -79,10 +82,12 @@ For production deployments, set these as repository secrets:
 When adding a new service:
 
 1. **Node.js Service:**
+
    - Add to `nodejs-services` matrix in `ci.yml`
    - Ensure `package-lock.json` exists for caching
 
 2. **Java Service:**
+
    - Add to `java-services` matrix in `ci.yml`
    - Ensure `pom.xml` exists for Maven caching
 
@@ -118,4 +123,3 @@ When adding a new service:
 4. **Fail fast in development**: Set `fail-fast: true` for faster feedback (optional)
 5. **Monitor costs**: Review GitHub Actions usage regularly
 6. **Security**: Never commit secrets, always use GitHub Secrets
-

@@ -34,7 +34,9 @@ export async function connectToBroker() {
     // Declare exchanges and queues
     await amqpChannel.assertExchange('chat_events', 'topic', { durable: true })
     await amqpChannel.assertQueue('chat_service_queue', { durable: true })
+    // Bind to message events and typing indicator events
     await amqpChannel.bindQueue('chat_service_queue', 'chat_events', 'message.*')
+    await amqpChannel.bindQueue('chat_service_queue', 'chat_events', 'typing.indicator')
     
     setupEventHandlers(amqpChannel)
     console.log('Connected to message broker')

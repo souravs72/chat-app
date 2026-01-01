@@ -41,8 +41,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setTimeout(() => {
         onClose()
       }, 1500)
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      setError(error.response?.data?.message || 'Failed to update profile')
     } finally {
       setLoading(false)
     }

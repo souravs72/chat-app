@@ -7,6 +7,7 @@ export interface User {
   email?: string
   status: 'online' | 'offline'
   lastSeen?: string
+  profilePicture?: string
 }
 
 export interface Chat {
@@ -50,7 +51,7 @@ export interface Story {
 
 export interface RealtimeEvent {
   type: string
-  payload: any
+  payload: unknown
   timestamp: string
 }
 

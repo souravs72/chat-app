@@ -16,11 +16,18 @@
     "dev:chat": "cd backend/services/chat-service && npm run dev",
     "dev:media": "cd backend/services/media-service && npm run dev",
     "dev:story": "cd backend/services/story-service && npm run dev",
-    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:chat\" \"npm run dev:media\" \"npm run dev:story\""
+    "dev:all": "concurrently \"npm run dev:gateway\" \"npm run dev:chat\" \"npm run dev:media\" \"npm run dev:story\"",
+    "prepare": "node -e \"try { if (!process.env.CI && process.env.HUSKY !== '0' && require('fs').existsSync('node_modules/husky')) require('husky').install() } catch (e) {}\"",
+    "lint:frontend": "cd frontend && npm run lint",
+    "type-check:frontend": "cd frontend && tsc --noEmit"
   },
   "devDependencies": {
     "body-parser": "~1.20.3",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7"

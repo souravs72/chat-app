@@ -1,0 +1,65 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged to check staged files
+echo "🔍 Running lint-staged on staged files..."
+npx lint-staged || {
+  echo "❌ lint-staged failed. Please fix the errors above."
+  exit 1
+}
+
+# Additional checks that should run on all commits
+echo "🔍 Running additional pre-commit checks..."
+
+# Check for TypeScript errors in frontend (only if frontend files are staged)
+STAGED_FRONTEND_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E "^frontend/.*\.(ts|tsx)$" || true)
+if [ -n "$STAGED_FRONTEND_TS" ]; then
+  echo "🔍 Running TypeScript type check for frontend..."
+  cd frontend && npm run type-check || {
+    echo "❌ TypeScript type check failed. Please fix the errors above."
+    exit 1
+  }
+  cd ..
+fi
+
+# Check for console.log statements (warn but don't fail)
+STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx)$' || true)
+if [ -n "$STAGED_JS_FILES" ]; then
+  CONSOLE_LOGS=$(echo "$STAGED_JS_FILES" | xargs grep -l "console\.log" 2>/dev/null || true)
+  if [ -n "$CONSOLE_LOGS" ]; then
+    echo "⚠️  Warning: Found console.log statements in:"
+    echo "$CONSOLE_LOGS" | sed 's/^/  - /'
+    echo "   Consider removing them before committing."
+  fi
+fi
+
+# Check for debugger statements (fail)
+if [ -n "$STAGED_JS_FILES" ]; then
+  DEBUGGER_STMTS=$(echo "$STAGED_JS_FILES" | xargs grep -l "^\s*debugger" 2>/dev/null || true)
+  if [ -n "$DEBUGGER_STMTS" ]; then
+    echo "❌ Found debugger statements. Please remove them before committing:"
+    echo "$DEBUGGER_STMTS" | sed 's/^/  - /'
+    exit 1
+  fi
+fi
+
+# Check for TODO/FIXME comments in production code (warn)
+STAGED_CODE_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|java)$' || true)
+if [ -n "$STAGED_CODE_FILES" ]; then
+  TODO_COMMENTS=$(echo "$STAGED_CODE_FILES" | xargs grep -lE "(TODO|FIXME)" 2>/dev/null || true)
+  if [ -n "$TODO_COMMENTS" ]; then
+    echo "⚠️  Warning: Found TODO/FIXME comments. Make sure they're intentional:"
+    echo "$TODO_COMMENTS" | sed 's/^/  - /'
+  fi
+fi
+
+# Check for large files (warn if > 1MB)
+LARGE_FILES=$(git diff --cached --name-only --diff-filter=ACM | xargs ls -lh 2>/dev/null | awk '$5 ~ /[0-9]+M/ {print $9, $5}' || true)
+if [ -n "$LARGE_FILES" ]; then
+  echo "⚠️  Warning: Found large files being committed:"
+  echo "$LARGE_FILES" | sed 's/^/  - /'
+  echo "   Consider using Git LFS for large files."
+fi
+
+echo "✅ Pre-commit checks passed!"
+

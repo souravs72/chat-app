@@ -9,11 +9,26 @@ import { pool, runMigrations } from './db.js'
 import { setupRoutes } from './routes.js'
 import { setupWebSocket } from './websocket.js'
 import { setupEventHandlers, connectToBroker } from './events.js'
+import { chatCache } from './cache.js'
+import { initializeRedisPubSub, closeRedisPubSub } from './redisPubSub.js'
 
 // Run migrations before starting server (non-blocking)
 runMigrations().catch((error) => {
   console.error('Migration error on startup:', error.message)
   console.log('Service will continue, but database may not be properly initialized')
+})
+
+// Initialize cache service (non-blocking)
+chatCache.initialize().catch((error) => {
+  console.warn('Cache initialization failed:', error.message)
+  console.log('Service will continue without cache (cache operations will be no-ops)')
+})
+
+// Initialize Redis pub/sub for WebSocket scaling (non-blocking, but recommended)
+initializeRedisPubSub().catch((error) => {
+  console.warn('Redis pub/sub initialization failed:', error.message)
+  console.log('Service will continue but WebSocket scaling will be limited to single instance')
+  console.log('For horizontal scaling, Redis pub/sub is required')
 })
 
 const app = express()
@@ -95,10 +110,43 @@ server.listen(PORT, () => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully')
-  server.close(() => {
-    console.log('Server closed')
-    process.exit(0)
+const gracefulShutdown = async (signal) => {
+  console.log(`${signal} received, shutting down gracefully...`)
+
+  // Close HTTP server
+  server.close(async () => {
+    console.log('HTTP server closed')
+
+    // Close Redis pub/sub connections
+    try {
+      await closeRedisPubSub()
+    } catch (error) {
+      console.error('Error closing Redis pub/sub:', error)
+    }
+
+    // Close Redis cache connection if connected
+    if (chatCache.client) {
+      try {
+        await chatCache.client.quit()
+        console.log('Redis cache connection closed')
+      } catch (error) {
+        console.error('Error closing Redis cache connection:', error)
+      }
+    }
+
+    // Close WebSocket server
+    wss.close(() => {
+      console.log('WebSocket server closed')
+      process.exit(0)
+    })
+
+    // Force exit after 10 seconds
+    setTimeout(() => {
+      console.error('Forced shutdown after timeout')
+      process.exit(1)
+    }, 10000)
   })
-})
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
