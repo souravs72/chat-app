@@ -3,7 +3,6 @@ import { randomUUID as uuidv4 } from 'crypto'
 import { publishEvent } from './events.js'
 import { chatCache } from './cache.js'
 import { broadcastToUser } from './websocket.js'
-import { broadcastToUser } from './websocket.js'
 
 export function setupRoutes(app) {
   // Get all chats for user
