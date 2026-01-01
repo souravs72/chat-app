@@ -1,0 +1,206 @@
+services:
+  # Redis Cluster - 3 Masters
+  redis-master-1:
+    image: redis:7-alpine
+    container_name: chat-redis-master-1
+    ports:
+      - "7001:7001"
+      - "17001:17001"
+    command: >
+      redis-server
+      --port 7001
+      --cluster-enabled yes
+      --cluster-config-file nodes-7001.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_master_1_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-master-2:
+    image: redis:7-alpine
+    container_name: chat-redis-master-2
+    ports:
+      - "7002:7002"
+      - "17002:17002"
+    command: >
+      redis-server
+      --port 7002
+      --cluster-enabled yes
+      --cluster-config-file nodes-7002.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_master_2_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-master-3:
+    image: redis:7-alpine
+    container_name: chat-redis-master-3
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    command: >
+      redis-server
+      --port 7003
+      --cluster-enabled yes
+      --cluster-config-file nodes-7003.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_master_3_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster - 3 Replicas
+  redis-replica-1:
+    image: redis:7-alpine
+    container_name: chat-redis-replica-1
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    command: >
+      redis-server
+      --port 7004
+      --cluster-enabled yes
+      --cluster-config-file nodes-7004.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_replica_1_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: chat-redis-replica-2
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    command: >
+      redis-server
+      --port 7005
+      --cluster-enabled yes
+      --cluster-config-file nodes-7005.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_replica_2_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica-3:
+    image: redis:7-alpine
+    container_name: chat-redis-replica-3
+    ports:
+      - "7006:7006"
+      - "17006:17006"
+    command: >
+      redis-server
+      --port 7006
+      --cluster-enabled yes
+      --cluster-config-file nodes-7006.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+      --masterauth ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_replica_3_data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7006", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster Initialization
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: chat-redis-cluster-init
+    depends_on:
+      redis-master-1:
+        condition: service_healthy
+      redis-master-2:
+        condition: service_healthy
+      redis-master-3:
+        condition: service_healthy
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+      redis-replica-3:
+        condition: service_healthy
+    networks:
+      - chat-network
+    command: >
+      sh -c "
+      apk add --no-cache bash &&
+      sleep 5 &&
+      redis-cli --cluster create
+        redis-master-1:7001
+        redis-master-2:7002
+        redis-master-3:7003
+        redis-replica-1:7004
+        redis-replica-2:7005
+        redis-replica-3:7006
+        --cluster-replicas 1
+        --cluster-yes
+      "
+    restart: "no"
+
+volumes:
+  redis_master_1_data:
+  redis_master_2_data:
+  redis_master_3_data:
+  redis_replica_1_data:
+  redis_replica_2_data:
+  redis_replica_3_data:
+
+networks:
+  chat-network:
+    external: true
+
