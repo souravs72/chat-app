@@ -36,3 +36,4 @@ else
     redis-cli -h redis-master-1 -p 7001 cluster nodes
 fi
 
+

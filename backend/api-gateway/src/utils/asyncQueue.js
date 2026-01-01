@@ -29,7 +29,7 @@ export async function initializeAsyncQueue(amqpUrl) {
     // Bind queue to exchange
     await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, 'operation')
 
-    console.log('[AsyncQueue] RabbitMQ connection established for async operations')
+    console.warn('[AsyncQueue] RabbitMQ connection established for async operations')
   } catch (error) {
     console.error('[AsyncQueue] Failed to initialize RabbitMQ connection:', error)
     console.warn('[AsyncQueue] Async operations will be disabled')
@@ -98,7 +98,7 @@ export async function closeAsyncQueue() {
       await connection.close()
       connection = null
     }
-    console.log('[AsyncQueue] RabbitMQ connection closed')
+    console.warn('[AsyncQueue] RabbitMQ connection closed')
   } catch (error) {
     console.error('[AsyncQueue] Error closing connection:', error)
   }
@@ -111,4 +111,5 @@ export async function closeAsyncQueue() {
 export function isAsyncQueueAvailable() {
   return channel !== null
 }
+
 

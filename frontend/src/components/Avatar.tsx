@@ -25,3 +25,4 @@ export default function Avatar({ src, name, size = 40, className = '' }: AvatarP
 }
 
 
+

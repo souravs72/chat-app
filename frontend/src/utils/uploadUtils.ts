@@ -14,11 +14,15 @@ export async function uploadProfilePicture(
       'image/jpeg'
     )
 
-    await fetch(uploadUrl, {
+    const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       body: blob,
       headers: { 'Content-Type': 'image/jpeg' },
     })
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Upload failed with status ${uploadResponse.status}: ${uploadResponse.statusText}`)
+    }
 
     await onSuccess(mediaUrl)
   } catch (error: unknown) {

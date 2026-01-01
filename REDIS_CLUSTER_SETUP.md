@@ -7,6 +7,7 @@ This guide explains how to set up and use Redis Cluster in Docker Compose for hi
 ## Architecture
 
 Redis Cluster configuration includes:
+
 - **3 Master nodes** (ports 7001-7003) - Handle read/write operations
 - **3 Replica nodes** (ports 7004-7006) - Provide high availability and read scaling
 - **Automatic failover** - If a master fails, a replica is promoted
@@ -46,22 +47,22 @@ docker compose --profile redis-cluster exec redis-cluster-master-1 redis-cli -p 
 The Redis client automatically handles cluster connections. Use a cluster endpoint:
 
 ```javascript
-import { createClient } from 'redis'
+import { createClient } from 'redis';
 
 // Cluster connection - client handles cluster discovery
 const client = createClient({
   socket: {
     host: 'redis-cluster-master-1', // Any cluster node
-    port: 7001
+    port: 7001,
   },
   // For cluster mode, Redis client will discover all nodes
-})
+});
 
 // Or use cluster-specific configuration
 const clusterClient = createClient({
   url: 'redis://redis-cluster-master-1:7001',
   // Client will use CLUSTER SLOTS to discover all nodes
-})
+});
 ```
 
 For production, you may want to use a Redis Cluster proxy or list all nodes:
@@ -70,10 +71,10 @@ For production, you may want to use a Redis Cluster proxy or list all nodes:
 const client = createClient({
   socket: {
     host: 'redis-cluster-master-1',
-    port: 7001
+    port: 7001,
   },
   // Redis client will discover cluster topology automatically
-})
+});
 ```
 
 **Note**: The `redis` npm package (v4+) supports cluster mode automatically when connecting to a cluster-enabled node. It will discover the cluster topology and route commands appropriately.
@@ -154,6 +155,7 @@ docker compose --profile redis-cluster exec redis-cluster-master-1 redis-cli --c
    - Azure Cache for Redis
 
 2. **Security**: Enable authentication:
+
    ```yaml
    command: >
      redis-server
@@ -193,6 +195,7 @@ docker compose --profile redis-cluster exec redis-cluster-init sh -c "redis-cli 
 ### Data Persistence
 
 Cluster configuration files and AOF files are stored in Docker volumes:
+
 - `redis_cluster_master_1_data`
 - `redis_cluster_master_2_data`
 - etc.
@@ -214,4 +217,3 @@ To backup: `docker run --rm -v chat_redis_cluster_master_1_data:/data -v $(pwd):
 - [Redis Cluster Specification](https://redis.io/docs/management/scaling/)
 - [Redis Cluster Tutorial](https://redis.io/docs/management/scaling/)
 - [Docker Compose Profiles](https://docs.docker.com/compose/profiles/)
-

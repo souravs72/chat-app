@@ -6,6 +6,11 @@ import { format } from 'date-fns'
 import TypingIndicator from './TypingIndicator'
 import { useTypingIndicator } from './useTypingIndicator'
 import Avatar from '@/components/Avatar'
+import AttachmentButton from '@/components/AttachmentButton'
+import EmojiPicker from '@/components/EmojiPicker'
+import FilePreviewPanel from '@/components/FilePreviewPanel'
+import { uploadFile } from '@/utils/fileUploadUtils'
+import type { MessageType } from '@/types'
 
 export default function ChatWindow() {
   const chatStore = useChatStore()
@@ -13,6 +18,8 @@ export default function ChatWindow() {
   const { user } = useAuthStore()
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<{ file: File; messageType: MessageType } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
   // Use custom typing indicator hook
@@ -31,12 +38,17 @@ export default function ChatWindow() {
     }
   }, [activeChat?.id, cleanup])
 
-  const handleSend = async () => {
-    if (!activeChat || !input.trim() || sending) return
+  const handleSend = async (messageType: MessageType = 'text', content: string = input.trim(), mediaUrl?: string) => {
+    if (!activeChat || (!content && !mediaUrl) || sending || uploading) return
 
     setSending(true)
     try {
-      const message = await apiClient.sendMessage(activeChat.id, 'text', input.trim())
+      const message = await apiClient.sendMessage(
+        activeChat.id, 
+        messageType, 
+        content || '', 
+        mediaUrl
+      )
       addMessage(message)
       
       // Stop typing indicator when message is sent
@@ -45,9 +57,14 @@ export default function ChatWindow() {
       setInput('')
     } catch (error) {
       console.error('Failed to send message:', error)
+      // TODO: Show error toast to user
     } finally {
       setSending(false)
     }
+  }
+
+  const handleSendText = async () => {
+    await handleSend('text', input.trim())
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,8 +76,43 @@ export default function ChatWindow() {
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      handleSendText()
     }
+  }
+
+  const handleFileSelect = (file: File, messageType: MessageType) => {
+    // Show preview panel instead of uploading immediately
+    setSelectedFile({ file, messageType })
+  }
+
+  const handleFileSend = async (file: File, caption?: string) => {
+    if (!activeChat || uploading || !selectedFile) return
+
+    const messageType = selectedFile.messageType
+    setSelectedFile(null)
+    setUploading(true)
+    try {
+      const { mediaUrl } = await uploadFile(file, {
+        onProgress: (progress) => {
+          console.log(`Upload progress: ${progress}%`)
+        },
+      })
+
+      await handleSend(messageType, caption || '', mediaUrl)
+    } catch (error) {
+      console.error('Failed to upload and send file:', error)
+      // TODO: Show error toast to user
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFileCancel = () => {
+    setSelectedFile(null)
+  }
+
+  const handleEmojiSelect = (emoji: string) => {
+    setInput(prev => prev + emoji)
   }
 
   const getChatDisplayName = () => {
@@ -184,12 +236,39 @@ export default function ChatWindow() {
                 )}
                 <div style={styles.messageContent}>
                   {message.type === 'image' && message.mediaUrl && (
-                    <img src={message.mediaUrl} alt="Shared" style={styles.media} />
+                    <img 
+                      src={message.mediaUrl} 
+                      alt={message.content || 'Shared image'} 
+                      style={styles.media}
+                      onError={(e) => {
+                        console.error('Failed to load image:', message.mediaUrl, e)
+                        // Fallback: show error message
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                        const errorDiv = document.createElement('div')
+                        errorDiv.textContent = 'Image failed to load'
+                        errorDiv.style.cssText = 'color: #999; font-size: 0.875rem; padding: 0.5rem;'
+                        target.parentNode?.appendChild(errorDiv)
+                      }}
+                    />
                   )}
                   {message.type === 'video' && message.mediaUrl && (
                     <video src={message.mediaUrl} controls style={styles.media} />
                   )}
-                  {message.content && (
+                  {message.type === 'audio' && message.mediaUrl && (
+                    <audio src={message.mediaUrl} controls style={styles.audio} />
+                  )}
+                  {message.type === 'document' && message.mediaUrl && (
+                    <a
+                      href={message.mediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.documentLink}
+                    >
+                      📄 {message.content || 'Document'}
+                    </a>
+                  )}
+                  {message.content && message.type !== 'document' && !(message.type === 'image' && message.mediaUrl) && (
                     <div style={styles.messageText}>{message.content}</div>
                   )}
                 </div>
@@ -212,7 +291,25 @@ export default function ChatWindow() {
           <TypingIndicator chatId={activeChat.id} />
         </div>
       )}
+      {selectedFile && (
+        <FilePreviewPanel
+          file={selectedFile.file}
+          messageType={selectedFile.messageType}
+          onSend={handleFileSend}
+          onCancel={handleFileCancel}
+        />
+      )}
       <div style={styles.inputArea}>
+        <div style={styles.leftButtons}>
+          <AttachmentButton
+            onFileSelect={handleFileSelect}
+            disabled={sending || uploading}
+          />
+          <EmojiPicker
+            onEmojiSelect={handleEmojiSelect}
+            disabled={sending || uploading}
+          />
+        </div>
         <input
           type="text"
           value={input}
@@ -220,16 +317,17 @@ export default function ChatWindow() {
           onKeyDown={handleInputKeyDown}
           placeholder="Type a message..."
           style={styles.input}
+          disabled={sending || uploading}
         />
         <button
-          onClick={handleSend}
-          disabled={sending || !input.trim()}
+          onClick={handleSendText}
+          disabled={sending || uploading || !input.trim()}
           style={{
             ...styles.sendButton,
-            ...((sending || !input.trim()) ? styles.sendButtonDisabled : {}),
+            ...((sending || uploading || !input.trim()) ? styles.sendButtonDisabled : {}),
           }}
         >
-          {sending ? '...' : '→'}
+          {sending || uploading ? '...' : '→'}
         </button>
       </div>
     </div>
@@ -361,6 +459,24 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     objectFit: 'contain',
   },
+  audio: {
+    width: '100%',
+    maxWidth: '400px',
+    marginTop: '0.5rem',
+  },
+  documentLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1rem',
+    backgroundColor: '#f0f2f5',
+    borderRadius: '8px',
+    color: '#007bff',
+    textDecoration: 'none',
+    fontWeight: '500',
+    transition: 'background-color 0.2s',
+    wordBreak: 'break-word',
+  },
   messageFooter: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -385,6 +501,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '0.75rem',
     alignItems: 'center',
   },
+  leftButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flexShrink: 0,
+  },
   input: {
     flex: 1,
     padding: '0.75rem 1rem',
@@ -392,6 +514,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '24px',
     fontSize: '1rem',
     outline: 'none',
+    backgroundColor: '#f0f2f5',
+    minWidth: 0,
   },
   sendButton: {
     width: '44px',

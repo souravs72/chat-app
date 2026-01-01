@@ -40,7 +40,10 @@ export function setupRoutes(app) {
         }
 
         return {
-          ...chat,
+          id: chat.id,
+          type: chat.type,
+          name: chat.name,
+          createdAt: chat.created_at,
           members: membersResult.rows.map(row => ({
             chatId: row.chat_id,
             userId: row.user_id,
@@ -108,24 +111,31 @@ export function setupRoutes(app) {
         WHERE cm.chat_id = $1
       `, [chatId])
 
-      chat.members = membersResult.rows.map(row => ({
-        chatId: row.chat_id,
-        userId: row.user_id,
-        role: row.role,
-        blocked: row.blocked || false,
-        user: row.user_id ? {
-          id: row.user_id,
-          name: row.name,
-          phone: row.phone,
-          status: row.status,
-          lastSeen: row.last_seen,
-        } : null,
-      }))
+      const chatWithMembers = {
+        id: chat.id,
+        type: chat.type,
+        name: chat.name,
+        createdAt: chat.created_at,
+        members: membersResult.rows.map(row => ({
+          chatId: row.chat_id,
+          userId: row.user_id,
+          role: row.role,
+          blocked: row.blocked || false,
+          user: row.user_id ? {
+            id: row.user_id,
+            name: row.name,
+            phone: row.phone,
+            status: row.status,
+            lastSeen: row.last_seen,
+            profilePicture: row.profile_picture,
+          } : null,
+        })),
+      }
 
       // Cache the result
-      await chatCache.setChat(chatId, chat)
+      await chatCache.setChat(chatId, chatWithMembers)
 
-      res.json(chat)
+      res.json(chatWithMembers)
     } catch (error) {
       console.error('Error fetching chat:', error)
       res.status(500).json({ message: 'Failed to fetch chat' })
@@ -232,7 +242,7 @@ export function setupRoutes(app) {
         query += ' ORDER BY m.created_at DESC LIMIT $2'
       }
 
-      params.push(parseInt(limit))
+      params.push(limitNum)
 
       const result = await pool.query(query, params)
 
@@ -287,7 +297,7 @@ export function setupRoutes(app) {
       }
 
       // Find or create personal chat
-      let chatResult = await pool.query(`
+      const chatResult = await pool.query(`
         SELECT c.id
         FROM chats c
         INNER JOIN chat_members cm1 ON c.id = cm1.chat_id
@@ -348,12 +358,6 @@ export function setupRoutes(app) {
 
       // Invalidate message cache for this chat
       await chatCache.invalidateMessages(chatId)
-
-      // Get chat members for broadcasting
-      const membersResult = await pool.query(
-        'SELECT user_id FROM chat_members WHERE chat_id = $1',
-        [chatId]
-      )
 
       // Broadcast message to recipient immediately via WebSocket
       // This ensures real-time delivery in addition to RabbitMQ event

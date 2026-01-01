@@ -4,8 +4,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-master-1
     ports:
-      - "7001:7001"
-      - "17001:17001"
+      - '7001:7001'
+      - '17001:17001'
     command: >
       redis-server
       --port 7001
@@ -21,7 +21,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7001', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -30,8 +30,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-master-2
     ports:
-      - "7002:7002"
-      - "17002:17002"
+      - '7002:7002'
+      - '17002:17002'
     command: >
       redis-server
       --port 7002
@@ -47,7 +47,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7002', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -56,8 +56,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-master-3
     ports:
-      - "7003:7003"
-      - "17003:17003"
+      - '7003:7003'
+      - '17003:17003'
     command: >
       redis-server
       --port 7003
@@ -73,7 +73,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7003', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -83,8 +83,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-replica-1
     ports:
-      - "7004:7004"
-      - "17004:17004"
+      - '7004:7004'
+      - '17004:17004'
     command: >
       redis-server
       --port 7004
@@ -100,7 +100,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7004', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -109,8 +109,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-replica-2
     ports:
-      - "7005:7005"
-      - "17005:17005"
+      - '7005:7005'
+      - '17005:17005'
     command: >
       redis-server
       --port 7005
@@ -126,7 +126,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7005', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -135,8 +135,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-replica-3
     ports:
-      - "7006:7006"
-      - "17006:17006"
+      - '7006:7006'
+      - '17006:17006'
     command: >
       redis-server
       --port 7006
@@ -152,7 +152,7 @@ services:
     networks:
       - chat-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "7006", "ping"]
+      test: ['CMD', 'redis-cli', '-p', '7006', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -190,7 +190,7 @@ services:
         --cluster-replicas 1
         --cluster-yes
       "
-    restart: "no"
+    restart: 'no'
 
 volumes:
   redis_master_1_data:
@@ -203,4 +203,3 @@ volumes:
 networks:
   chat-network:
     external: true
-

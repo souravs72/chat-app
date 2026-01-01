@@ -7,11 +7,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,13 +22,13 @@ services:
     image: rabbitmq:3-management
     container_name: chat-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - '5672:5672'
+      - '15672:15672'
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,12 +39,12 @@ services:
     image: redis:7-alpine
     container_name: chat-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,7 +57,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-api-gateway
     ports:
-      - "8080:8080"
+      - '8080:8080'
     environment:
       - AUTH_SERVICE_URL=http://auth-service:8081
       - USER_SERVICE_URL=http://user-service:8082
@@ -94,7 +94,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-auth-service
     ports:
-      - "8081:8081"
+      - '8081:8081'
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=postgres
@@ -120,7 +120,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-user-service
     ports:
-      - "8082:8082"
+      - '8082:8082'
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=postgres
@@ -146,7 +146,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-service
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       - PORT=3001
       - DB_HOST=postgres
@@ -175,16 +175,24 @@ services:
       dockerfile: Dockerfile
     container_name: chat-media-service
     ports:
-      - "3002:3002"
+      - '3002:3002'
     environment:
       - PORT=3002
       - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      # Google Cloud Storage (priority if configured)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account-key.json
+      - GCS_BUCKET_NAME=chat_bucket_112
+      - MEDIA_BASE_URL=https://storage.googleapis.com/chat_bucket_112
+      # AWS S3 (fallback if GCS not configured)
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - S3_BUCKET=${S3_BUCKET:-chat-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-}
       - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-false}
-      - MEDIA_BASE_URL=${MEDIA_BASE_URL:-https://s3.amazonaws.com}
+      - URL_EXPIRY=${URL_EXPIRY:-3600}
+    volumes:
+      # Mount GCS credentials file
+      - ./backend/services/media-service/credentials/service-account-key.json:/app/credentials/service-account-key.json:ro
     networks:
       - chat-network
     restart: unless-stopped
@@ -195,7 +203,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-story-service
     ports:
-      - "3003:3003"
+      - '3003:3003'
     environment:
       - PORT=3003
       - DB_HOST=postgres
@@ -221,7 +229,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-notification-service
     ports:
-      - "8083:8083"
+      - '8083:8083'
     environment:
       - AMQP_URL=amqp://admin:admin@rabbitmq:5672
     depends_on:
@@ -237,7 +245,7 @@ services:
       dockerfile: Dockerfile
     container_name: chat-frontend
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - VITE_WS_URL=ws://localhost:3001/ws
       - VITE_API_URL=http://localhost:8080

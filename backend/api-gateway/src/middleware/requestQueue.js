@@ -1,5 +1,3 @@
-import { createClient } from 'redis'
-
 /**
  * Request queue middleware for handling high-priority operations
  * Uses Redis lists to implement a distributed queue
@@ -166,4 +164,5 @@ export async function enqueueAsyncOperation(redisClient, operationType, operatio
     data: operationData
   })
 }
+
 
