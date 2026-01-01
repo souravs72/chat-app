@@ -2,6 +2,8 @@ import { pool } from './db.js'
 import { randomUUID as uuidv4 } from 'crypto'
 import { publishEvent } from './events.js'
 import { chatCache } from './cache.js'
+import { broadcastToUser } from './websocket.js'
+import { broadcastToUser } from './websocket.js'
 
 export function setupRoutes(app) {
   // Get all chats for user
@@ -348,7 +350,28 @@ export function setupRoutes(app) {
       // Invalidate message cache for this chat
       await chatCache.invalidateMessages(chatId)
 
-      // Publish event to message broker
+      // Get chat members for broadcasting
+      const membersResult = await pool.query(
+        'SELECT user_id FROM chat_members WHERE chat_id = $1',
+        [chatId]
+      )
+
+      // Broadcast message to recipient immediately via WebSocket
+      // This ensures real-time delivery in addition to RabbitMQ event
+      broadcastToUser(recipientId, {
+        type: 'MESSAGE_SENT',
+        payload: message,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Clear typing indicator for sender - broadcast to recipient
+      broadcastToUser(recipientId, {
+        type: 'TYPING_INDICATOR',
+        payload: { chatId, userId: senderId, isTyping: false },
+        timestamp: new Date().toISOString(),
+      })
+
+      // Publish event to message broker (for other services like notifications)
       await publishEvent('message.sent', {
         message,
         chatId,
