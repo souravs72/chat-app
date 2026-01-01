@@ -443,7 +443,36 @@ export function setupRoutes(app) {
       // Invalidate message cache for this chat
       await chatCache.invalidateMessages(chatId)
 
-      // Publish event to message broker
+      // Get chat members for broadcasting
+      const membersResult = await pool.query(
+        'SELECT user_id FROM chat_members WHERE chat_id = $1',
+        [chatId]
+      )
+
+      // Broadcast message to all chat members except sender immediately via WebSocket
+      // This ensures real-time delivery in addition to RabbitMQ event
+      membersResult.rows.forEach(row => {
+        if (row.user_id !== userId) {
+          broadcastToUser(row.user_id, {
+            type: 'MESSAGE_SENT',
+            payload: message,
+            timestamp: new Date().toISOString(),
+          })
+        }
+      })
+
+      // Clear typing indicator for sender - broadcast to all other members
+      membersResult.rows.forEach(row => {
+        if (row.user_id !== userId) {
+          broadcastToUser(row.user_id, {
+            type: 'TYPING_INDICATOR',
+            payload: { chatId, userId, isTyping: false },
+            timestamp: new Date().toISOString(),
+          })
+        }
+      })
+
+      // Publish event to message broker (for other services like notifications)
       await publishEvent('message.sent', {
         message,
         chatId,
