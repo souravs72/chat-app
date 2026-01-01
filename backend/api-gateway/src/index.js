@@ -256,6 +256,7 @@ async function startServer() {
     }
 
     // Close async queue connection
+    const { closeAsyncQueue } = await import('./utils/asyncQueue.js')
     await closeAsyncQueue()
 
     process.exit(0)
