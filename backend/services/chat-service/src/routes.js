@@ -265,7 +265,7 @@ export function setupRoutes(app) {
       const reversedMessages = messages.reverse()
 
       // Cache the fetched messages for future requests
-      await chatCache.setMessages(chatId, reversedMessages, before || null)
+      await chatCache.setMessages(chatId, limitNum, before || null, reversedMessages)
 
       res.json(reversedMessages)
     } catch (error) {
