@@ -262,7 +262,12 @@ export function setupRoutes(app) {
         } : null,
       }))
 
-      res.json(messages.reverse())
+      const reversedMessages = messages.reverse()
+
+      // Cache the fetched messages for future requests
+      await chatCache.setMessages(chatId, reversedMessages, before || null)
+
+      res.json(reversedMessages)
     } catch (error) {
       console.error('Error fetching messages:', error)
       res.status(500).json({ message: 'Failed to fetch messages' })
