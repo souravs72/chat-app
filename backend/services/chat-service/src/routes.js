@@ -1,12 +1,20 @@
 import { pool } from './db.js'
 import { randomUUID as uuidv4 } from 'crypto'
 import { publishEvent } from './events.js'
+import { chatCache } from './cache.js'
 
 export function setupRoutes(app) {
   // Get all chats for user
   app.get('/api/chats', async (req, res) => {
     try {
       const userId = req.userId
+
+      // Try cache first
+      const cached = await chatCache.getChatList(userId)
+      if (cached) {
+        return res.json(cached)
+      }
+
       const result = await pool.query(`
         SELECT DISTINCT c.*
         FROM chats c
@@ -52,6 +60,9 @@ export function setupRoutes(app) {
       // Filter out null chats (self-only chats)
       const filteredChats = chats.filter(chat => chat !== null)
 
+      // Cache the result
+      await chatCache.setChatList(userId, filteredChats)
+
       res.json(filteredChats)
     } catch (error) {
       console.error('Error fetching chats:', error)
@@ -73,6 +84,12 @@ export function setupRoutes(app) {
 
       if (memberCheck.rows.length === 0) {
         return res.status(403).json({ message: 'Not a member of this chat' })
+      }
+
+      // Try cache first
+      const cached = await chatCache.getChat(chatId)
+      if (cached) {
+        return res.json(cached)
       }
 
       const chatResult = await pool.query('SELECT * FROM chats WHERE id = $1', [chatId])
@@ -103,6 +120,9 @@ export function setupRoutes(app) {
           lastSeen: row.last_seen,
         } : null,
       }))
+
+      // Cache the result
+      await chatCache.setChat(chatId, chat)
 
       res.json(chat)
     } catch (error) {
@@ -139,6 +159,9 @@ export function setupRoutes(app) {
       await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, currentUserId])
       await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, otherUserId])
 
+      // Invalidate cache for both users
+      await chatCache.invalidateChatListForUsers([currentUserId, otherUserId])
+
       res.json({ id: chatId, type: 'personal' })
     } catch (error) {
       console.error('Error creating personal chat:', error)
@@ -157,6 +180,9 @@ export function setupRoutes(app) {
 
       // Add creator as admin
       await pool.query('INSERT INTO chat_members (chat_id, user_id, role) VALUES ($1, $2, $3)', [chatId, userId, 'admin'])
+
+      // Invalidate cache for creator
+      await chatCache.invalidateChatList(userId)
 
       res.json({ id: chatId, type: 'channel', name })
     } catch (error) {
@@ -272,6 +298,8 @@ export function setupRoutes(app) {
         await pool.query('INSERT INTO chats (id, type) VALUES ($1, $2)', [chatId, 'personal'])
         await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, senderId])
         await pool.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, recipientId])
+        // Invalidate cache for both users
+        await chatCache.invalidateChatListForUsers([senderId, recipientId])
       }
 
       // Unblock user if they're replying (sending a message)

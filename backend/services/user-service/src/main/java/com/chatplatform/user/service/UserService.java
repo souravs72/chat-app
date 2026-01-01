@@ -15,7 +15,17 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private CacheService cacheService;
+
     public UserDto getUser(String userId) {
+        // Try to get from cache first
+        UserDto cached = cacheService.getUserFromCache(userId);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Cache miss - fetch from database
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -27,6 +37,10 @@ public class UserService {
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
         dto.setProfilePicture(user.getProfilePicture());
+
+        // Cache the result
+        cacheService.cacheUser(userId, dto);
+
         return dto;
     }
 
@@ -39,6 +53,9 @@ public class UserService {
             user.setLastSeen(LocalDateTime.now());
         }
         userRepository.save(user);
+
+        // Evict cache on update
+        cacheService.evictUser(userId);
     }
 
     public List<UserDto> searchUsers(String query, String excludeUserId) {
@@ -80,6 +97,10 @@ public class UserService {
         dto.setStatus(user.getStatus());
         dto.setLastSeen(user.getLastSeen());
         dto.setProfilePicture(user.getProfilePicture());
+
+        // Update cache with new data
+        cacheService.cacheUser(userId, dto);
+
         return dto;
     }
 }

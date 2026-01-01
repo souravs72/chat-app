@@ -6,11 +6,18 @@ import jwt from 'jsonwebtoken'
 import cron from 'node-cron'
 import { pool, runMigrations } from './db.js'
 import { randomUUID as uuidv4 } from 'crypto'
+import { storyCache, connectRedisCache } from './cache.js'
 
 // Run migrations before starting server (non-blocking)
 runMigrations().catch((error) => {
   console.error('Migration error on startup:', error.message)
   console.log('Service will continue, but database may not be properly initialized')
+})
+
+// Connect to Redis for caching (non-blocking)
+connectRedisCache().catch((error) => {
+  console.warn('Redis cache connection failed:', error.message)
+  console.log('Service will continue without Redis caching (performance may be impacted)')
 })
 
 const app = express()
@@ -44,6 +51,13 @@ app.use('/api', verifyToken)
 // Get all active stories
 app.get('/api/stories', async (req, res) => {
   try {
+    // Try cache first
+    const cached = await storyCache.getStoriesList()
+    if (cached) {
+      return res.json(cached)
+    }
+
+    // Cache miss - fetch from database
     const result = await pool.query(`
       SELECT s.*, u.id as user_id, u.name, u.phone
       FROM stories s
@@ -63,6 +77,9 @@ app.get('/api/stories', async (req, res) => {
         phone: row.phone,
       } : null,
     }))
+
+    // Cache the result
+    await storyCache.setStoriesList(stories)
 
     res.json(stories)
   } catch (error) {
@@ -105,6 +122,9 @@ app.post('/api/stories', async (req, res) => {
       },
     }
 
+    // Invalidate cache when a new story is created
+    await storyCache.invalidateStoriesList()
+
     res.json(story)
   } catch (error) {
     console.error('Error creating story:', error)
@@ -116,6 +136,8 @@ app.post('/api/stories', async (req, res) => {
 cron.schedule('0 * * * *', async () => {
   try {
     await pool.query('DELETE FROM stories WHERE expires_at < NOW()')
+    // Invalidate cache after cleanup
+    await storyCache.invalidateStoriesList()
     console.log('Expired stories cleaned up')
   } catch (error) {
     console.error('Error cleaning up stories:', error)

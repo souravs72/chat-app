@@ -35,6 +35,22 @@ services:
     networks:
       - chat-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
   api-gateway:
     build:
       context: ./backend/api-gateway
@@ -49,12 +65,25 @@ services:
       - MEDIA_SERVICE_URL=http://media-service:3002
       - STORY_SERVICE_URL=http://story-service:3003
       - NOTIFICATION_SERVICE_URL=http://notification-service:8083
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - AMQP_URL=amqp://admin:admin@rabbitmq:5672
     depends_on:
-      - auth-service
-      - user-service
-      - chat-service
-      - media-service
-      - story-service
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
+      media-service:
+        condition: service_started
+      story-service:
+        condition: service_started
     networks:
       - chat-network
     restart: unless-stopped
@@ -74,8 +103,12 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - chat-network
@@ -96,8 +129,12 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - chat-network
@@ -119,10 +156,14 @@ services:
       - DB_PASSWORD=postgres
       - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
       - AMQP_URL=amqp://admin:admin@rabbitmq:5672
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - chat-network
@@ -163,8 +204,12 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - JWT_SECRET=production-secret-key-minimum-32-characters-for-hs256-algorithm
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - chat-network
@@ -208,3 +253,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:

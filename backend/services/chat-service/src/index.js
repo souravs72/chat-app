@@ -9,11 +9,18 @@ import { pool, runMigrations } from './db.js'
 import { setupRoutes } from './routes.js'
 import { setupWebSocket } from './websocket.js'
 import { setupEventHandlers, connectToBroker } from './events.js'
+import { chatCache } from './cache.js'
 
 // Run migrations before starting server (non-blocking)
 runMigrations().catch((error) => {
   console.error('Migration error on startup:', error.message)
   console.log('Service will continue, but database may not be properly initialized')
+})
+
+// Initialize cache service (non-blocking)
+chatCache.initialize().catch((error) => {
+  console.warn('Cache initialization failed:', error.message)
+  console.log('Service will continue without cache (cache operations will be no-ops)')
 })
 
 const app = express()
@@ -95,9 +102,34 @@ server.listen(PORT, () => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully')
-  server.close(() => {
+  server.close(async () => {
+    // Close Redis connection if connected
+    if (chatCache.client) {
+      try {
+        await chatCache.client.quit()
+        console.log('Redis connection closed')
+      } catch (error) {
+        console.error('Error closing Redis connection:', error)
+      }
+    }
+    console.log('Server closed')
+    process.exit(0)
+  })
+})
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully')
+  server.close(async () => {
+    if (chatCache.client) {
+      try {
+        await chatCache.client.quit()
+        console.log('Redis connection closed')
+      } catch (error) {
+        console.error('Error closing Redis connection:', error)
+      }
+    }
     console.log('Server closed')
     process.exit(0)
   })
